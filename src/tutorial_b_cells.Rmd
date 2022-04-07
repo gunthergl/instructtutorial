@@ -64,38 +64,38 @@ panel <- colnames(data_norm_sub)[15:54]
 
 * Some explanation
 
-#### CD45+CD3+
+#### CD45+CD19+
 
 * Using ggplot and geom_point, generate a scatter plot to decide the gates. Visualize just 10% of the data.
 * Visualize the gates, using eg.: geom_rect.
 
-```{r gateTcells1, fig.height=5, fig.width=5} 
+```{r gateBcells1, fig.height=5, fig.width=5} 
 data_norm_sub %>% 
- dplyr::filter(CD3>0, CD45>0) %>% 
+ dplyr::filter(CD19>0, CD45>0) %>% 
  sample_frac(0.1) %>% 
  mutate_at(vars(panel),asinh) %>% 
- dplyr::filter(CD45>0, CD3>0) %>% 
- ggplot(aes(x=CD45, y=CD3)) +
+ dplyr::filter(CD45>0, CD19>0) %>% 
+ ggplot(aes(x=CD45, y=CD19)) +
  geom_point(size = 0.01, alpha = 0.1) +
  geom_density_2d()+
- geom_rect(mapping=aes(xmin=1, xmax=8, ymin=4.3, ymax=8), color="black", alpha=0) 
+ geom_rect(mapping=aes(xmin=3, xmax=8, ymin=4, ymax=10), color="black", alpha=0) 
 
 ```
 
-#### CD45+CD3+CD15-CD19-
+#### CD45+CD19+CD3-CD15-
 
-* Further gate on CD15 and CD19
+* Further gate on CD3 and CD15
 
-```{r gateTcells2, fig.height=5, fig.width=5}
+```{r gateBcells2, fig.height=5, fig.width=5}
 data_norm_sub %>% 
  mutate_at(vars(panel),asinh) %>% 
- dplyr::filter(CD3>4.3,
-               CD45>1,
-               CD15>0,CD19>0) %>% 
- ggplot(aes(x=CD19, y=CD15)) +
+ dplyr::filter(CD19>4 & CD19<10,
+               CD45>3 & CD45<8,
+               CD15>0, CD3>0) %>% 
+ ggplot(aes(x=CD3, y=CD15)) +
  geom_point(size = 0.01, alpha = 0.1) +
  geom_density_2d()+
- geom_rect(mapping=aes(xmin=0, xmax=2.9, ymin=0, ymax=4), color="black", alpha=0) 
+ geom_rect(mapping=aes(xmin=0, xmax=3.6, ymin=0, ymax=3), color="black", alpha=0) 
 ```
 
 #### Percentage of T cells
@@ -105,8 +105,9 @@ data_norm_sub %>%
 * Visualize the percentage of T cells grouped by severity group (use the classification "sev_merge"), using eg.: geom_boxplot, and facet by disease phase.
 
 
-```{r columnTcells}
-data_norm_sub <- data_norm_sub %>% mutate(Tcell = ifelse(CD3>sinh(4.3) & CD45>sinh(1) & CD15<sinh(4) & CD19<sinh(2.9), TRUE, FALSE))
+```{r columnBcells}
+data_norm_sub <- data_norm_sub %>% mutate(Bcell = ifelse(CD19>sinh(4) & CD19<sinh(10) & CD45>sinh(3) & CD45<sinh(8) & CD3<sinh(3.6) & CD15<sinh(3), TRUE, FALSE))
+
 ```
 
 ```{r color_sev}
@@ -120,127 +121,64 @@ color_severity <- c(
 ```
 
 
-```{r percTcells}
+```{r percBcells}
 
 data_norm_sub <- data_norm_sub %>% mutate(sev_merge = factor(sev_merge,levels = c("healthy","FLI","HIV","HBV","mild/moderate","severe/critical")))
 
 data_norm_sub %>% 
- dplyr::count(id,Tcell,sev_merge,Disease.phase) %>% 
+ dplyr::count(id,Bcell,sev_merge,Disease.phase) %>% 
  group_by(id) %>% 
  mutate(perc = n/sum(n)*100) %>% 
  ungroup() %>% 
- dplyr::filter(Tcell) %>% 
+ dplyr::filter(Bcell) %>% 
  ggplot(aes(y = perc, x = sev_merge, fill = sev_merge)) + 
  geom_boxplot(position=position_dodge(1), alpha = 0.7)+
  geom_dotplot(binaxis='y', stackdir='center',
               position=position_dodge(1), alpha = 0.7)+
  facet_grid(~ Disease.phase, space = "free_x", scale = "free_x") + 
  scale_fill_manual(values = color_severity)+
- ylab("Percentage of T cells (%)") + 
+ ylab("Percentage of B cells (%)") + 
  xlab("")+
  theme(axis.text.x=element_blank(),
        axis.ticks.x=element_blank())
 ```
 
 
-### 1.2 Manual gating of T cells (CD4+, CD8+, TCRgd+)
-
-* We manually gate T cells based on CD8 and TCRgd channels.
-* Gates were defined per CyTOF run. Due to time restrictions, we are providing the gates in asinh-scale. Eg.: If the cell has an asinh-signal of TCRgd lower or equal than the threshold, and a asinh-signal of CD8 lower or equal than the corresponding CD8 threshold, then the cell is CD4+.  
-* Create a new column "Tcellcompartment" and classify the cell according to the gates.
-
-```{r gatesTcells}
-gates <- tibble(
- Run = as.numeric(str_sort(unique(data_norm_sub$Run))),
- CD8threshold = c(3.9,4.15,3.7,3.7,4.3,4.1,3.8,4.4,5.1,4.85,4.55,4.55,4,5,4.2),
- TCRgdthreshold = c(2.85,2.85,2.85,2.85,2.85,2.85,2.85,2.85,2.85,2.85,2.85,2.85,2.85,2.85,3.7))
-```
-
-```{r applyGates}
-data_Tcell <- data_norm_sub %>% dplyr::filter(Tcell)
-
-data_Tcell <- data_Tcell %>% 
- left_join(gates) %>% 
- mutate(Tcellcompartment = case_when( asinh(TCRgd) <= TCRgdthreshold & asinh(CD8) <= CD8threshold ~ "CD4+",
-                                      asinh(TCRgd) <= TCRgdthreshold & asinh(CD8) > CD8threshold ~ "CD8+",
-                                      TRUE ~ "TCRgd+"))
-
-
-```
-
-* Visualize the gates 
-
-```{r visualizeGateTcellcompartment, fig.height=5, fig.width=8,  results = 'asis'}
-data_Tcell %>% 
-  mutate_at(vars(panel),asinh) %>% 
-   ggplot(aes(x=CD8, y=TCRgd)) +
-   geom_point(aes(color = Tcellcompartment),size = 0.5, alpha = 0.5) +
-   guides(colour = guide_legend(override.aes = list(size=5)))
-```
-
-#### Percentage of each T cell compartment across T cells 
-
-```{r percTcellcompartmentAllSamples, fig.height=7, fig.width=5}
-data_Tcell %>% 
- dplyr::count(Tcellcompartment) %>% 
- mutate(perc = n/sum(n)*100) %>% 
- ggplot(aes(x = Tcellcompartment, y = perc, fill = Tcellcompartment, label = round(perc,2) )) + 
- geom_col(position = "dodge") + 
- geom_label() + 
- theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1), legend.position = "none") +   
- ylab("Percentage of each T cell compartment from all T cells (%)") + 
- xlab("")
-
-```
-
 ## 3. UMAP
 
-* Compute the UMAPs for each T cell compartment across all samples (acute and convalescent), and using all markers, except the channels we used for gating, and also excluding IgD, IgM, CD21, and CD14.
+* Compute the UMAPs for each T cell compartment across all samples (acute and convalescent), and using all markers, except the channels we used for gating, and also excluding CD45RO, CRTH2, and CD14.
 * Define a vector "sel_markers" with the selected markers to be used for the calculation of the UMAP.
 
 ```{r sel_markers}
-sel_markers <- panel[!panel %in% c("CD45","CD3", "CD19","CD15","CD8","TCRgd","IgD","IgM","CD21","CD14")]
+sel_markers <- panel[!panel %in% c("CD45","CD3", "CD19","CD15","CD8","TCRgd","CD45RO","CRTH2","CD14")]
 
 ```
+
+```{r subsetB}
+data_Bcell <- dplyr::filter(data_norm_sub, Bcell==T)
+
+```
+
+
 
 * Before calculation of the UMAP, is important we transform our data ("asinh") and apply z-score normalization (function "scale"). Why?
 
 ```{r computeUMAP}
 
-UMAP_TCRgd <- data_Tcell %>%
+UMAP_B <- data_Bcell %>%
   mutate_at(vars(sel_markers), asinh) %>% 
   mutate_at(vars(sel_markers), scale) %>% 
-  dplyr::filter(Tcellcompartment == "TCRgd+") %>%
   dplyr::select(sel_markers) %>%
   uwot::umap(n_neighbors = 30,spread = 1, min_dist = 0.5,metric = "euclidean", verbose = TRUE, fast_sgd = TRUE)
 
-UMAP_CD4 <- data_Tcell %>%
-  mutate_at(vars(sel_markers), asinh) %>% 
-  mutate_at(vars(sel_markers), scale) %>% 
-  dplyr::filter(Tcellcompartment == "CD4+") %>%
-  dplyr::select(sel_markers)  %>%
-  uwot::umap(n_neighbors = 30,spread = 1,min_dist = 0.5,metric = "euclidean", verbose = TRUE, fast_sgd = TRUE)
-
-UMAP_CD8 <- data_Tcell %>%
-  mutate_at(vars(sel_markers), asinh) %>% 
-  mutate_at(vars(sel_markers), scale) %>% 
-  dplyr::filter(Tcellcompartment == "CD8+") %>%
-  dplyr::select(sel_markers) %>% 
-  uwot::umap(n_neighbors = 30,spread = 1,min_dist = 0.5,metric = "euclidean", verbose = TRUE, fast_sgd = TRUE)
-
 #### Add UMAP information to data frame
 
-data_Tcell$UMAP1 <- NA
-data_Tcell$UMAP2 <- NA
+data_Bcell$UMAP1 <- NA
+data_Bcell$UMAP2 <- NA
 
-data_Tcell$UMAP1[data_Tcell$Tcellcompartment == "CD4+"] <- UMAP_CD4[,1]
-data_Tcell$UMAP1[data_Tcell$Tcellcompartment == "CD8+"] <- UMAP_CD8[,1]
-data_Tcell$UMAP1[data_Tcell$Tcellcompartment == "TCRgd+"] <- UMAP_TCRgd[,1]
+data_Bcell$UMAP1 <- UMAP_B[,1]
 
-
-data_Tcell$UMAP2[data_Tcell$Tcellcompartment == "CD4+"] <- UMAP_CD4[,2]
-data_Tcell$UMAP2[data_Tcell$Tcellcompartment == "CD8+"] <- UMAP_CD8[,2]
-data_Tcell$UMAP2[data_Tcell$Tcellcompartment == "TCRgd+"] <- UMAP_TCRgd[,2]
+data_Bcell$UMAP2 <- UMAP_B[,2]
 
 ```
 
@@ -250,12 +188,10 @@ data_Tcell$UMAP2[data_Tcell$Tcellcompartment == "TCRgd+"] <- UMAP_TCRgd[,2]
 * Recommendation: subsample CD4+ and CD8+ T cells for visualization, using sample_n, or sample_frac.
 * Do you observe specific areas where CV19 samples accumulate? What does this mean?
 
-```{r UMAP_severity, fig.height=7, fig.width=21}
+```{r UMAP_severity, fig.height=7, fig.width=7}
 
 
-p1 <- data_Tcell %>% 
-  dplyr::filter(Tcellcompartment == "CD4+") %>% 
-  sample_n(30000) %>% 
+data_Bcell %>% 
   ggplot(aes(x = UMAP1, y=UMAP2, color = sev_merge)) +
   geom_point(alpha = 0.5,size = 2)+
   guides(colour = guide_legend(ncol = 1,override.aes = list(size=3, alpha = 1))) +
@@ -264,29 +200,6 @@ p1 <- data_Tcell %>%
   ggtitle("CD4+") +
   theme(legend.position = "none",plot.title = element_text(hjust = 0.5)) 
 
-p2 <- data_Tcell %>% 
-  dplyr::filter(Tcellcompartment == "CD8+") %>% 
-  sample_n(30000) %>% 
-  ggplot(aes(x = UMAP1, y=UMAP2, color = sev_merge)) +
-  geom_point(alpha = 0.5,size = 2)+
-  guides(colour = guide_legend(ncol = 1,override.aes = list(size=3, alpha = 1))) +
-  scale_color_manual(values = color_severity, name = "")+
-  theme_classic() + 
-  ggtitle("CD8+") +
-  theme(legend.position = "none",plot.title = element_text(hjust = 0.5)) 
-
-p3 <- data_Tcell %>% 
-  dplyr::filter(Tcellcompartment == "TCRgd+") %>% 
-  ggplot(aes(x = UMAP1, y=UMAP2, color = sev_merge)) +
-  geom_point(alpha = 0.5,size = 3)+
-  guides(colour = guide_legend(ncol = 1,override.aes = list(size=3, alpha = 1))) +
-  scale_color_manual(values = color_severity, name = "")+
-  theme_classic() + 
-  ggtitle("TCRgd+") +
-  theme(legend.position = "right", legend.direction = "vertical",plot.title = element_text(hjust = 0.5)) 
-
-
-plot_grid(p1,p2,p3,nrow = 1)
 
 ```
 
@@ -295,11 +208,10 @@ plot_grid(p1,p2,p3,nrow = 1)
 * Plot each UMAP using only COVID-19, coloured by disease phase (acute or convalescent)
 * Do you observe specific areas where convalescent samples acumulate? What does this mean?
 
-```{r UMAP_diseasephase, fig.height=7, fig.width=21}
+```{r UMAP_diseasephase, fig.height=7, fig.width=7}
 
 
-p1 <- data_Tcell %>% 
-  dplyr::filter(Tcellcompartment == "CD4+", Group == "CV19") %>% 
+data_Bcell %>% 
   ggplot(aes(x = UMAP1, y=UMAP2, color = Disease.phase)) +
   geom_point(alpha = 0.5,size = 2)+
   guides(colour = guide_legend(ncol = 1,override.aes = list(size=3, alpha = 1))) +
@@ -308,28 +220,6 @@ p1 <- data_Tcell %>%
   ggtitle("CD4+") +
   theme(legend.position = "none",plot.title = element_text(hjust = 0.5)) 
 
-p2 <- data_Tcell %>% 
-  dplyr::filter(Tcellcompartment == "CD8+", Group == "CV19") %>% 
-  ggplot(aes(x = UMAP1, y=UMAP2, color = Disease.phase)) +
-  geom_point(alpha = 0.5,size = 2)+
-  guides(colour = guide_legend(ncol = 1,override.aes = list(size=3, alpha = 1))) +
-  scale_color_manual(values = c("acute" = "red","convalescent"="black"), name = "")+
-  theme_classic() + 
-  ggtitle("CD8+") +
-  theme(legend.position = "none",plot.title = element_text(hjust = 0.5)) 
-
-p3 <- data_Tcell %>% 
-  dplyr::filter(Tcellcompartment == "TCRgd+", Group == "CV19") %>% 
-  ggplot(aes(x = UMAP1, y=UMAP2, color = Disease.phase)) +
-  geom_point(alpha = 0.5,size = 3)+
-  guides(colour = guide_legend(ncol = 1,override.aes = list(size=3, alpha = 1))) +
-  scale_color_manual(values = c("acute" = "red","convalescent"="black"), name = "")+
-  theme_classic() + 
-  ggtitle("TCRgd+") +
-  theme(legend.position = "none",plot.title = element_text(hjust = 0.5)) 
-
-
-plot_grid(p1,p2,p3,nrow = 1)
 
 ```
 
@@ -341,44 +231,39 @@ plot_grid(p1,p2,p3,nrow = 1)
 ```{r UMAP_markers, fig.height=7, fig.width=21}
 
 
-p1 <- data_Tcell %>% 
-  mutate_at(vars(sel_markers), asinh) %>% 
-  mutate_at(vars(sel_markers), scale) %>% 
-  dplyr::filter(Tcellcompartment == "CD4+") %>% 
-  sample_n(30000) %>% 
-  ggplot(aes(x = UMAP1, y=UMAP2, color = HLADR)) +
-  geom_point(alpha = 0.5,size = 2)+
-  theme_classic() + 
-  ggtitle("CD4+") +
-  theme(legend.position = "none",plot.title = element_text(hjust = 0.5)) +
-  scale_color_gradient2(low = "blue", mid = "grey", high = "red", midpoint = 0)
+p1 <- data_Bcell %>% 
+      mutate_at(vars(sel_markers), asinh) %>% 
+      mutate_at(vars(sel_markers), scale) %>%
+      ggplot(aes(x = UMAP1, y=UMAP2, color = CD34)) +
+      geom_point(alpha = 0.5,size = 2)+
+      theme_classic() + 
+      ggtitle("CD34 signal") +
+      theme(legend.position = "none",plot.title = element_text(hjust = 0.5)) +
+      scale_color_gradient2(low = "blue", mid = "grey", high = "red", midpoint = 0)
+
+p2 <- data_Bcell %>% 
+      mutate_at(vars(sel_markers), asinh) %>% 
+      mutate_at(vars(sel_markers), scale) %>%
+      ggplot(aes(x = UMAP1, y=UMAP2, color = IgM)) +
+      geom_point(alpha = 0.5,size = 2)+
+      theme_classic() + 
+      ggtitle("IgM signal") +
+      theme(legend.position = "none",plot.title = element_text(hjust = 0.5)) +
+      scale_color_gradient2(low = "blue", mid = "grey", high = "red", midpoint = 0)
+
+p3 <- data_Bcell %>% 
+      mutate_at(vars(sel_markers), asinh) %>% 
+      mutate_at(vars(sel_markers), scale) %>%
+      ggplot(aes(x = UMAP1, y=UMAP2, color = CD38)) +
+      geom_point(alpha = 0.5,size = 2)+
+      theme_classic() + 
+      ggtitle("CD38 signal") +
+      theme(legend.position = "none",plot.title = element_text(hjust = 0.5)) +
+      scale_color_gradient2(low = "blue", mid = "grey", high = "red", midpoint = 0)
 
 
-p2 <- data_Tcell %>% 
-  mutate_at(vars(sel_markers), asinh) %>% 
-  mutate_at(vars(sel_markers), scale) %>% 
-  dplyr::filter(Tcellcompartment == "CD8+") %>% 
-  sample_n(30000) %>% 
-  ggplot(aes(x = UMAP1, y=UMAP2, color = HLADR)) +
-  geom_point(alpha = 0.5,size = 2)+
-  theme_classic() + 
-  ggtitle("CD8+") +
-  theme(legend.position = "none",plot.title = element_text(hjust = 0.5)) +
-  scale_color_gradient2(low = "blue", mid = "grey", high = "red", midpoint = 0)
 
-
-p3 <- data_Tcell %>% 
-  mutate_at(vars(sel_markers), asinh) %>% 
-  mutate_at(vars(sel_markers), scale) %>% 
-  dplyr::filter(Tcellcompartment == "TCRgd+") %>% 
-  ggplot(aes(x = UMAP1, y=UMAP2, color = HLADR)) +
-  geom_point(alpha = 0.5,size = 3)+
-  theme_classic() + 
-  ggtitle("TCRgd+") +
-  theme(plot.title = element_text(hjust = 0.5)) +
-  scale_color_gradient2(low = "blue", mid = "grey", high = "red", midpoint = 0)
-
-plot_grid(p1,p2,p3,nrow = 1)
+plot_grid(p1,p2,p3, nrow = 1)
 
 ```
 
@@ -393,35 +278,33 @@ plot_grid(p1,p2,p3,nrow = 1)
 ```{r runRphenograph, results="hide"}
 start_time <- Sys.time()
 
-clust_cd8 <- data_Tcell %>% 
+clust_cd8 <- data_Bcell %>% 
  mutate_at(vars(sel_markers), asinh) %>% 
  mutate_at(vars(sel_markers), scale) %>% 
- dplyr::filter(Tcellcompartment == "CD8+",Disease.phase == "acute") %>%
+ dplyr::filter(Disease.phase == "acute") %>%
  dplyr::select(sel_markers) %>% 
  Rphenograph(k = 30)
 
 end_time <- Sys.time()
 
-
 ```
 ```{r}
-
 time_elapsed <- round(as.numeric(gsub('Time difference of ', '', difftime(end_time, start_time, units = "mins"))), 2)
 
-print(paste('\n', time_elapsed, 'minutes passed'))
+print(paste(time_elapsed, 'minutes passed'))
 ```
 
 * Add a column "Rpheno" in the main data table with the cluster label for each cell
 
 ```{r add_clust_info}
-clust_ids <- data_Tcell %>% 
-   dplyr::filter(Tcellcompartment == "CD8+",Disease.phase == "acute") %>%
+clust_ids <- data_Bcell %>% 
+   dplyr::filter(Disease.phase == "acute") %>%
    pull(cellid)
 
 clust_cd8 <- tibble(cellid = clust_ids, Rpheno = as.character(membership(clust_cd8[[2]])))
 
-data_Tcell <- data_Tcell %>% left_join(clust_cd8)
-data_Tcell <- data_Tcell %>% mutate(Rpheno = factor(Rpheno, levels = str_sort(unique(Rpheno), numeric = TRUE)))
+data_Bcell <- data_Bcell %>% left_join(clust_cd8)
+data_Bcell <- data_Bcell %>% mutate(Rpheno = factor(Rpheno, levels = str_sort(unique(Rpheno), numeric = TRUE)))
 
 ```
 
@@ -430,7 +313,7 @@ data_Tcell <- data_Tcell %>% mutate(Rpheno = factor(Rpheno, levels = str_sort(un
 * Visualize the number of cells in each cluster 
 
 ```{r clustSize, fig.height=5, fig.width=10}
- data_Tcell %>% dplyr::filter(Tcellcompartment == "CD8+",data_Tcell$Disease.phase == "acute" ) %>%
+ data_Bcell %>% dplyr::filter(data_Bcell$Disease.phase == "acute" ) %>%
  dplyr::count(Rpheno) %>% 
  ggplot(aes(x = Rpheno, y = n, label = n))+
  geom_col(position = "dodge") + geom_label() 
@@ -442,8 +325,8 @@ data_Tcell <- data_Tcell %>% mutate(Rpheno = factor(Rpheno, levels = str_sort(un
 * Do you observe specific areas where convalescent samples acumulate? What does this mean?
 
 ```{r UMAP_clusters, fig.height=5, fig.width=7}
-data_Tcell %>% 
-  dplyr::filter(Tcellcompartment == "CD8+",data_Tcell$Disease.phase == "acute") %>% 
+data_Bcell %>% 
+  dplyr::filter(data_Bcell$Disease.phase == "acute") %>% 
   ggplot(aes(x = UMAP1, y=UMAP2, color = Rpheno)) +
   geom_point(alpha = 0.5,size = 1)+
   guides(colour = guide_legend(ncol = 1,override.aes = list(size=3, alpha = 1))) +
@@ -462,16 +345,17 @@ data_Tcell %>%
 
 
 ```{r heatmapClusters, fig.height=5, fig.width=5}
-
-data_Tcell %>% 
+order_vec <- rev(c('IgD','IgM','CD10','CD21','HLADR','CXCR5','CD27','CD38','CD25','CXCR3','CD62L','CCR6','CD69','CD34','Ki67','CD95','CD11c','CD137','CD226','ICOS','PD1','Lag3','TIGIT','CD96','CD123','KLRB1','KLRG1','KLRF1','CD16','CD28','CD56'))
+sel_markers <- factor(sel_markers,levels = order_vec)
+data_Bcell %>% 
  mutate_at(vars(sel_markers), asinh) %>% 
  mutate_at(vars(sel_markers), scale) %>% 
- dplyr::filter(Tcellcompartment == "CD8+" & Disease.phase == "acute") %>%
+ dplyr::filter(Disease.phase == "acute") %>%
  dplyr::select(sel_markers,Rpheno) %>%
  group_by(Rpheno) %>%
  summarise_at(vars(sel_markers), funs(mean(., na.rm=TRUE))) %>% 
  pivot_longer(names_to = "markers", values_to = "avg_zscore", - Rpheno) %>% 
- mutate(markers = factor(markers,levels = sel_markers)) %>% 
+ mutate(markers = factor(markers,levels = order_vec)) %>% 
  ggplot(aes(x = Rpheno, y = markers, fill = avg_zscore)) + 
  geom_tile() + 
  scale_fill_gradient2(low = "blue", mid = "white", high = "red", limits = c(-4,4)) 
@@ -482,25 +366,15 @@ data_Tcell %>%
 
 ```{r heatmapOriginalClusters, fig.height=10, fig.width=10}
 
-markers_category <- c(rep("Differentiation",2),
-                     rep("Co-stimulation",4),
-                     rep("Co-inhibition",4),
-                     rep("Activation",7),
-                     rep("Chemokine receptor",4),
-                     rep("Others",9))
-
-markers_category <- factor(markers_category, 
-                          levels=c("Differentiation","Co-stimulation","Co-inhibition","Activation","Chemokine receptor","Others"))
-
-
-data_heatmap <- data_Tcell %>% 
+data_heatmap <- data_Bcell %>% 
  mutate_at(vars(sel_markers), asinh) %>% 
  mutate_at(vars(sel_markers), scale) %>% 
- dplyr::filter(Tcellcompartment == "CD8+" & Disease.phase == "acute") %>%
+ dplyr::filter(Disease.phase == "acute") %>%
  dplyr::select(sel_markers,Rpheno) %>%
  group_by(Rpheno) %>%
- summarise_at(vars(sel_markers), funs(mean(., na.rm=TRUE))) %>%
+ summarise_at(vars(rev(sel_markers)), funs(mean(., na.rm=TRUE))) %>%
  column_to_rownames("Rpheno")
+data_heatmap <- data_heatmap[,rev(order_vec)]
 
 data_heatmap %>% t() %>% 
  Heatmap(name = "z-score avg", 
@@ -509,7 +383,6 @@ data_heatmap %>% t() %>%
          rect_gp = gpar(col = "white", lwd = 2),
          column_dend_height = unit(4, "cm"),
          column_names_rot = 45,
-         row_split = markers_category,
          row_title_rot = 0
  )
 
@@ -526,10 +399,10 @@ start_time <- Sys.time()
 
 flowsom_meta <- 10 #input the number of clusters you want to recieve at the end
 
-clust_cd8 <- data_Tcell %>% 
+clust_cd8 <- data_Bcell %>% 
  mutate_at(vars(sel_markers), asinh) %>% 
  mutate_at(vars(sel_markers), scale) %>% 
- dplyr::filter(Tcellcompartment == "CD8+",Disease.phase == "acute") %>%
+ dplyr::filter(Disease.phase == "acute") %>%
  dplyr::select(sel_markers) %>% 
  cytof_cluster(xdata=. , method = 'FlowSOM', FlowSOM_k = flowsom_meta)
 
@@ -547,14 +420,14 @@ print(paste('\n', time_elapsed, 'minutes passed'))
 * Add a column "flowsom" in the main data table with the cluster label for each cell
 
 ```{r add_clust_info}
-#clust_ids <- data_Tcell %>% 
-#   dplyr::filter(Tcellcompartment == "CD8+",Disease.phase == "acute") %>%
+#clust_ids <- data_Bcell %>% 
+#   dplyr::filter(Bcellcompartment == "CD8+",Disease.phase == "acute") %>%
 #   pull(cellid)
 
 clust_cd8 <- tibble(cellid = clust_ids, flowsom = as.character(clust_cd8))
 
-data_Tcell <- data_Tcell %>% left_join(clust_cd8)
-data_Tcell <- data_Tcell %>% mutate(flowsom = factor(flowsom, levels = str_sort(unique(flowsom), numeric = TRUE)))
+data_Bcell <- data_Bcell %>% left_join(clust_cd8)
+data_Bcell <- data_Bcell %>% mutate(flowsom = factor(flowsom, levels = str_sort(unique(flowsom), numeric = TRUE)))
 
 ```
 
@@ -563,7 +436,7 @@ data_Tcell <- data_Tcell %>% mutate(flowsom = factor(flowsom, levels = str_sort(
 * Visualize the number of cells in each cluster 
 
 ```{r clustSize, fig.height=5, fig.width=10}
- data_Tcell %>% dplyr::filter(Tcellcompartment == "CD8+",data_Tcell$Disease.phase == "acute" ) %>%
+ data_Bcell %>% dplyr::filter(data_Bcell$Disease.phase == "acute" ) %>%
  dplyr::count(flowsom) %>% 
  ggplot(aes(x = flowsom, y = n, label = n))+
  geom_col(position = "dodge") + geom_label() 
@@ -575,13 +448,13 @@ data_Tcell <- data_Tcell %>% mutate(flowsom = factor(flowsom, levels = str_sort(
 * Do you observe specific areas where convalescent samples acumulate? What does this mean?
 
 ```{r UMAP_clusters, fig.height=5, fig.width=7}
-data_Tcell %>% 
-  dplyr::filter(Tcellcompartment == "CD8+",data_Tcell$Disease.phase == "acute") %>% 
+data_Bcell %>% 
+  dplyr::filter(data_Bcell$Disease.phase == "acute") %>% 
   ggplot(aes(x = UMAP1, y=UMAP2, color = flowsom)) +
   geom_point(alpha = 0.5,size = 1)+
   guides(colour = guide_legend(ncol = 1,override.aes = list(size=3, alpha = 1))) +
   theme_classic() + 
-  ggtitle("CD8+") +
+  ggtitle("B Cells") +
   theme(plot.title = element_text(hjust = 0.5)) 
 
 
@@ -596,15 +469,15 @@ data_Tcell %>%
 
 ```{r heatmapClusters, fig.height=5, fig.width=5}
 
-data_Tcell %>% 
+data_Bcell %>% 
  mutate_at(vars(sel_markers), asinh) %>% 
  mutate_at(vars(sel_markers), scale) %>% 
- dplyr::filter(Tcellcompartment == "CD8+" & Disease.phase == "acute") %>%
+ dplyr::filter(Disease.phase == "acute") %>%
  dplyr::select(sel_markers,flowsom) %>%
  group_by(flowsom) %>%
  summarise_at(vars(sel_markers), funs(mean(., na.rm=TRUE))) %>% 
  pivot_longer(names_to = "markers", values_to = "avg_zscore", - flowsom) %>% 
- mutate(markers = factor(markers,levels = sel_markers)) %>% 
+ mutate(markers = factor(markers,levels = order_vec)) %>% 
  ggplot(aes(x = flowsom, y = markers, fill = avg_zscore)) + 
  geom_tile() + 
  scale_fill_gradient2(low = "blue", mid = "white", high = "red", limits = c(-4,4)) 
@@ -615,25 +488,15 @@ data_Tcell %>%
 
 ```{r heatmapOriginalClusters, fig.height=10, fig.width=10}
 
-markers_category <- c(rep("Differentiation",2),
-                     rep("Co-stimulation",4),
-                     rep("Co-inhibition",4),
-                     rep("Activation",7),
-                     rep("Chemokine receptor",4),
-                     rep("Others",9))
-
-markers_category <- factor(markers_category, 
-                          levels=c("Differentiation","Co-stimulation","Co-inhibition","Activation","Chemokine receptor","Others"))
-
-
-data_heatmap <- data_Tcell %>% 
+data_heatmap <- data_Bcell %>% 
  mutate_at(vars(sel_markers), asinh) %>% 
  mutate_at(vars(sel_markers), scale) %>% 
- dplyr::filter(Tcellcompartment == "CD8+" & Disease.phase == "acute") %>%
+ dplyr::filter( Disease.phase == "acute") %>%
  dplyr::select(sel_markers,flowsom) %>%
  group_by(flowsom) %>%
  summarise_at(vars(sel_markers), funs(mean(., na.rm=TRUE))) %>%
  column_to_rownames("flowsom")
+data_heatmap <- data_heatmap[,rev(order_vec)]
 
 data_heatmap %>% t() %>% 
  Heatmap(name = "z-score avg", 
@@ -642,7 +505,6 @@ data_heatmap %>% t() %>%
          rect_gp = gpar(col = "white", lwd = 2),
          column_dend_height = unit(4, "cm"),
          column_names_rot = 45,
-         row_split = markers_category,
          row_title_rot = 0
  )
 
@@ -661,7 +523,7 @@ data_heatmap %>% t() %>%
 For the non-weekly analysis, we considered the first sample per patient when multiple samples were available.
 
 ```{r defineIDs}
-selected_ids <- data_Tcell %>% 
+selected_ids <- data_Bcell %>% 
   dplyr::filter(Disease.phase == "acute") %>% 
  dplyr::count(Individuals,id,Group,sev_merge,Days.post.symptom.onset) %>% 
  dplyr::select(-n) %>% 
@@ -682,10 +544,10 @@ selected_ids <- data_Tcell %>%
 
 ```{r boxplot_clust_abundance, fig.height=10, fig.width=10}
 
- data_Tcell %>% 
- dplyr::filter(id %in% selected_ids, Tcellcompartment == "CD8+") %>% 
- dplyr::count(id,sev_merge,Tcellcompartment,Rpheno) %>% 
- group_by(id,Tcellcompartment) %>% 
+ data_Bcell %>% 
+ dplyr::filter(id %in% selected_ids) %>% 
+ dplyr::count(id,sev_merge,Rpheno) %>% 
+ group_by(id) %>% 
  mutate(perc = n/sum(n)*100) %>% 
  ungroup() %>% 
   # When using the function count(), if a cluster is absent in a donor, it will not be counted as zero. 
@@ -693,13 +555,12 @@ selected_ids <- data_Tcell %>%
  tidyr::complete(id,Rpheno,fill = list(n=0,perc = 0)) %>% 
  ungroup() %>% 
  group_by(Rpheno) %>% 
- fill(Tcellcompartment, .direction = "downup") %>% 
+ fill(.direction = "downup") %>% 
  ungroup() %>% 
  group_by(id) %>% 
  fill(sev_merge, .direction = "downup") %>% 
  ungroup() %>% 
  mutate(perc = ifelse(is.na(perc),0,perc)) %>% 
- dplyr::filter(!is.na(Tcellcompartment)) %>% 
  ggplot(aes(x = sev_merge, y = perc, fill = sev_merge)) + 
  geom_boxplot() + 
  geom_jitter()+
@@ -712,10 +573,10 @@ selected_ids <- data_Tcell %>%
 
 ```{r boxplot_clust_flow_abundance, fig.height=10, fig.width=10}
 
- data_Tcell %>% 
- dplyr::filter(id %in% selected_ids, Tcellcompartment == "CD8+") %>% 
- dplyr::count(id,sev_merge,Tcellcompartment,flowsom) %>% 
- group_by(id,Tcellcompartment) %>% 
+ data_Bcell %>% 
+ dplyr::filter(id %in% selected_ids) %>% 
+ dplyr::count(id,sev_merge,flowsom) %>% 
+ group_by(id) %>% 
  mutate(perc = n/sum(n)*100) %>% 
  ungroup() %>% 
   # When using the function count(), if a cluster is absent in a donor, it will not be counted as zero. 
@@ -723,13 +584,12 @@ selected_ids <- data_Tcell %>%
  tidyr::complete(id,flowsom,fill = list(n=0,perc = 0)) %>% 
  ungroup() %>% 
  group_by(flowsom) %>% 
- fill(Tcellcompartment, .direction = "downup") %>% 
+ fill(.direction = "downup") %>% 
  ungroup() %>% 
  group_by(id) %>% 
  fill(sev_merge, .direction = "downup") %>% 
  ungroup() %>% 
  mutate(perc = ifelse(is.na(perc),0,perc)) %>% 
- dplyr::filter(!is.na(Tcellcompartment)) %>% 
  ggplot(aes(x = sev_merge, y = perc, fill = sev_merge)) + 
  geom_boxplot() + 
  geom_jitter()+
