@@ -54,7 +54,34 @@ data_norm_sub %>% dplyr::count(Run,id,Individuals,Group,Severity,Disease.phase,m
 panel <- colnames(data_norm_sub)[15:54]
 ```
 
-* Something to explain them that we need to apply asinh or log(x+1). (Violin plot or density plot)
+* It is common practice to transform CyTOF marker intensities using, for example, arcsinh (inverse hyperbolic sine) with cofactor 5 to make the distributions more symmetric and to map them to a comparable range of expression, which is important for clustering.
+* This transformation retains linearity in the low end of the count spectrum, but it resembles a log transformation in the high end. Cofactor determines the range of ion counts for which linearity is retained may be adjusted.
+* Look at the example below.
+
+
+```{r gateTcells1, fig.height=5, fig.width=10} 
+p1 <- data_norm_sub %>% 
+       dplyr::filter(CD3>0, CD19>0) %>% 
+       sample_frac(0.1) %>% 
+       dplyr::filter(CD3>0, CD19>0) %>% 
+       ggplot(aes(x=CD3, y=CD19)) +
+       geom_point(size = 0.01, alpha = 0.1) +
+       geom_density_2d()+
+       ggtitle('Untransformed')
+
+p2 <- data_norm_sub %>% 
+       dplyr::filter(CD3>0, CD19>0) %>% 
+       sample_frac(0.1) %>% 
+       mutate_at(vars(panel),asinh) %>% 
+       dplyr::filter(CD3>0, CD19>0) %>% 
+       ggplot(aes(x=CD3, y=CD19)) +
+       geom_point(size = 0.01, alpha = 0.1) +
+       geom_density_2d()+
+       ggtitle('Arcsinh transformed')
+
+plot_grid(p1,p2, nrow = 1)
+
+```
 
 
 
@@ -62,7 +89,7 @@ panel <- colnames(data_norm_sub)[15:54]
 
 ### 1.1 Gate T cells
 
-* Some explanation
+* To avoid clustering all the cell types at once and thus increase the resolution of our cell population classification, we use manual gating on well-defined general immune cell subsets.
 
 #### CD45+CD3+
 
@@ -78,7 +105,7 @@ data_norm_sub %>%
  ggplot(aes(x=CD45, y=CD3)) +
  geom_point(size = 0.01, alpha = 0.1) +
  geom_density_2d()+
- geom_rect(mapping=aes(xmin=1, xmax=8, ymin=4.3, ymax=8), color="black", alpha=0) 
+ geom_rect(mapping=aes(xmin=4, xmax=8, ymin=4.3, ymax=8), color="black", alpha=0) 
 
 ```
 
@@ -90,7 +117,7 @@ data_norm_sub %>%
 data_norm_sub %>% 
  mutate_at(vars(panel),asinh) %>% 
  dplyr::filter(CD3>4.3,
-               CD45>1,
+               CD45>4,
                CD15>0,CD19>0) %>% 
  ggplot(aes(x=CD19, y=CD15)) +
  geom_point(size = 0.01, alpha = 0.1) +
@@ -100,13 +127,13 @@ data_norm_sub %>%
 
 #### Percentage of T cells
 
-* Add a column to the data table where each cell gets the classification T cell = {TRUE, FALSE} according to your gating strategy.
+* Add a column to the data table where each cell gets the classification T cell = {TRUE, FALSE} according to your gating strategy. (flagging)
 * Calculate the percentage of T cells in each sample
 * Visualize the percentage of T cells grouped by severity group (use the classification "sev_merge"), using eg.: geom_boxplot, and facet by disease phase.
-
+* Why do you think the numbers vary so much?
 
 ```{r columnTcells}
-data_norm_sub <- data_norm_sub %>% mutate(Tcell = ifelse(CD3>sinh(4.3) & CD45>sinh(1) & CD15<sinh(4) & CD19<sinh(2.9), TRUE, FALSE))
+data_norm_sub <- data_norm_sub %>% mutate(Tcell = ifelse(CD3>sinh(4.3) & CD45>sinh(4) & CD15<sinh(4) & CD19<sinh(2.9), TRUE, FALSE))
 ```
 
 ```{r color_sev}
@@ -204,6 +231,7 @@ sel_markers <- panel[!panel %in% c("CD45","CD3", "CD19","CD15","CD8","TCRgd","Ig
 ```
 
 * Before calculation of the UMAP, is important we transform our data ("asinh") and apply z-score normalization (function "scale"). Why?
+* What information can we gain from UMAP?
 
 ```{r computeUMAP}
 
@@ -428,7 +456,7 @@ data_Tcell <- data_Tcell %>% mutate(Rpheno = factor(Rpheno, levels = str_sort(un
 #### Cluster size
 
 * Visualize the number of cells in each cluster 
-
+* How are the cells distributed across clusters? What do you expect to happen if we increase the number of cells in the dataset?
 ```{r clustSize, fig.height=5, fig.width=10}
  data_Tcell %>% dplyr::filter(Tcellcompartment == "CD8+",data_Tcell$Disease.phase == "acute" ) %>%
  dplyr::count(Rpheno) %>% 
@@ -438,8 +466,9 @@ data_Tcell <- data_Tcell %>% mutate(Rpheno = factor(Rpheno, levels = str_sort(un
 
 #### UMAP clusters
 
-* Plot each UMAP using only COVID-19, coloured by disease phase (acute or convalescent)
-* Do you observe specific areas where convalescent samples acumulate? What does this mean?
+* Would you say that classification fits the clusters observed in the UMAP?
+* Are there immediate problems you see with the classification?
+* Why don't clusters match up completely?
 
 ```{r UMAP_clusters, fig.height=5, fig.width=7}
 data_Tcell %>% 
@@ -479,6 +508,7 @@ data_Tcell %>%
 ```
 
 * With the library "ComplexHeatmap" we can additionally group the clusters (dendogram) by their similarities.
+* Try to do basic annotation of the clusters.
 
 ```{r heatmapOriginalClusters, fig.height=10, fig.width=10}
 
@@ -518,7 +548,7 @@ data_heatmap %>% t() %>%
 
 ### 3.1 FlowSOM
 
-*IMPORTANT! We have to select the number of metaclusters manually!
+* IMPORTANT! We have to select the number of metaclusters manually!
 ```{r runflowsom, results="hide"}
 set.seed(1234) #set random seed for reproducibility
 
@@ -560,7 +590,9 @@ data_Tcell <- data_Tcell %>% mutate(flowsom = factor(flowsom, levels = str_sort(
 
 #### Cluster size
 
-* Visualize the number of cells in each cluster 
+* Visualize the number of cells in each cluster
+* Are the cells distributed differently?
+* What do you expect to happen as we increase the number of cells in the input?
 
 ```{r clustSize, fig.height=5, fig.width=10}
  data_Tcell %>% dplyr::filter(Tcellcompartment == "CD8+",data_Tcell$Disease.phase == "acute" ) %>%
@@ -571,8 +603,9 @@ data_Tcell <- data_Tcell %>% mutate(flowsom = factor(flowsom, levels = str_sort(
 
 #### UMAP clusters
 
-* Plot each UMAP using only COVID-19, coloured by disease phase (acute or convalescent)
-* Do you observe specific areas where convalescent samples acumulate? What does this mean?
+* Would you say that classification fits the clusters observed in the UMAP?
+* Are there immediate problems you see with the classification?
+* How is the clustering different from PhenoGraph?
 
 ```{r UMAP_clusters, fig.height=5, fig.width=7}
 data_Tcell %>% 
@@ -612,6 +645,8 @@ data_Tcell %>%
 ```
 
 * With the library "ComplexHeatmap" we can additionally group the clusters (dendogram) by their similarities.
+* Try to do basic annotation of the clusters.
+* Are they different from PhenoGraph ones?
 
 ```{r heatmapOriginalClusters, fig.height=10, fig.width=10}
 
@@ -738,3 +773,5 @@ selected_ids <- data_Tcell %>%
  theme(axis.text.x = element_blank()) +
   ggtitle('flowsom cluster abundances')
 ```
+* How different are the cluster abundances observed between the algorithms? What are the differences?
+* Which algorithm performs better in your opinion?
