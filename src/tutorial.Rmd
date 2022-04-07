@@ -27,6 +27,7 @@ library(dplyr)
 library(cowplot)
 library(uwot)
 library(Rphenograph)
+library(cytofkit)
 library(ComplexHeatmap)
 theme_set(theme_cowplot())
 
@@ -43,16 +44,19 @@ theme_set(theme_cowplot())
 * Create a vector with the name of each measured protein (panel)
 
 ```{r read, results="hide"}
-data_norm_sub <- read.csv("~/Documents/INsTRuCT_workshop/data_norm_sub5.csv")
+#data_norm_sub <- read.csv("~/Documents/INsTRuCT_workshop/data_norm_sub5.csv")
+data_norm_sub <- read.csv("/mnt/c/Users/woode/OneDrive - uni-duesseldorf.de/Uni/DOCTORATE/Teaching/instruct_workshop/tutorial/instructtutorial/data/data_norm_sub5.csv")
 
 colnames(data_norm_sub)
 
-data_norm_sub %>% count(Run,id,Individuals,Group,Severity,Disease.phase,max..WHO.scale,sev_merge,Days.post.symptom.onset,Week, sev_week,followup)
+data_norm_sub %>% dplyr::count(Run,id,Individuals,Group,Severity,Disease.phase,max..WHO.scale,sev_merge,Days.post.symptom.onset,Week, sev_week,followup)
 
 panel <- colnames(data_norm_sub)[15:54]
 ```
 
 * Something to explain them that we need to apply asinh or log(x+1). (Violin plot or density plot)
+
+
 
 ## 1. Manual Gating
 
@@ -121,7 +125,7 @@ color_severity <- c(
 data_norm_sub <- data_norm_sub %>% mutate(sev_merge = factor(sev_merge,levels = c("healthy","FLI","HIV","HBV","mild/moderate","severe/critical")))
 
 data_norm_sub %>% 
- count(id,Tcell,sev_merge,Disease.phase) %>% 
+ dplyr::count(id,Tcell,sev_merge,Disease.phase) %>% 
  group_by(id) %>% 
  mutate(perc = n/sum(n)*100) %>% 
  ungroup() %>% 
@@ -178,7 +182,7 @@ data_Tcell %>%
 
 ```{r percTcellcompartmentAllSamples, fig.height=7, fig.width=5}
 data_Tcell %>% 
- count(Tcellcompartment) %>% 
+ dplyr::count(Tcellcompartment) %>% 
  mutate(perc = n/sum(n)*100) %>% 
  ggplot(aes(x = Tcellcompartment, y = perc, fill = Tcellcompartment, label = round(perc,2) )) + 
  geom_col(position = "dodge") + 
@@ -387,12 +391,20 @@ plot_grid(p1,p2,p3,nrow = 1)
 ### 3.1 RPhenograph
 
 ```{r runRphenograph, results="hide"}
+start_time <- Sys.time()
+
 clust_cd8 <- data_Tcell %>% 
  mutate_at(vars(sel_markers), asinh) %>% 
  mutate_at(vars(sel_markers), scale) %>% 
  dplyr::filter(Tcellcompartment == "CD8+",Disease.phase == "acute") %>%
  dplyr::select(sel_markers) %>% 
  Rphenograph(k = 30)
+
+end_time <- Sys.time()
+
+time_elapsed <- end_time - start_time
+
+print(time_elapsed)
 ```
 
 * Add a column "Rpheno" in the main data table with the cluster label for each cell
@@ -402,7 +414,7 @@ clust_ids <- data_Tcell %>%
    dplyr::filter(Tcellcompartment == "CD8+",Disease.phase == "acute") %>%
    pull(cellid)
 
-clust_cd8 <- tibble(cellid = clust_ids, Rpheno = as.character(membership(clust_cd8[[2]])))
+clust_cd8 <- tibble(cellid = clust_ids, Rpheno = as.character(clust_cd8[[2]]))
 
 data_Tcell <- data_Tcell %>% left_join(clust_cd8)
 data_Tcell <- data_Tcell %>% mutate(Rpheno = factor(Rpheno, levels = str_sort(unique(Rpheno), numeric = TRUE)))
@@ -415,7 +427,7 @@ data_Tcell <- data_Tcell %>% mutate(Rpheno = factor(Rpheno, levels = str_sort(un
 
 ```{r clustSize, fig.height=5, fig.width=10}
  data_Tcell %>% dplyr::filter(Tcellcompartment == "CD8+",data_Tcell$Disease.phase == "acute" ) %>%
- count(Rpheno) %>% 
+ dplyr::count(Rpheno) %>% 
  ggplot(aes(x = Rpheno, y = n, label = n))+
  geom_col(position = "dodge") + geom_label() 
 ```
@@ -499,6 +511,138 @@ data_heatmap %>% t() %>%
 
 ```
 
+
+### 3.1 FlowSOM
+
+*IMPORTANT! We have to select the number of metaclusters manually!
+```{r runflowsom, results="hide"}
+set.seed(1234) #set random seed for reproducibility
+
+start_time <- Sys.time()
+
+flowsom_meta <- 10 #input the number of clusters you want to recieve at the end
+
+clust_cd8 <- data_Tcell %>% 
+ mutate_at(vars(sel_markers), asinh) %>% 
+ mutate_at(vars(sel_markers), scale) %>% 
+ dplyr::filter(Tcellcompartment == "CD8+",Disease.phase == "acute") %>%
+ dplyr::select(sel_markers) %>% 
+ cytof_cluster(xdata=. , method = 'FlowSOM', FlowSOM_k = flowsom_meta)
+
+end_time <- Sys.time()
+
+time_elapsed <- end_time - start_time
+
+print(time_elapsed)
+
+```
+
+* Add a column "flowsom" in the main data table with the cluster label for each cell
+
+```{r add_clust_info}
+#clust_ids <- data_Tcell %>% 
+#   dplyr::filter(Tcellcompartment == "CD8+",Disease.phase == "acute") %>%
+#   pull(cellid)
+
+clust_cd8 <- tibble(cellid = clust_ids, flowsom = as.character(clust_cd8))
+
+data_Tcell <- data_Tcell %>% left_join(clust_cd8)
+data_Tcell <- data_Tcell %>% mutate(flowsom = factor(flowsom, levels = str_sort(unique(flowsom), numeric = TRUE)))
+
+```
+
+#### Cluster size
+
+* Visualize the number of cells in each cluster 
+
+```{r clustSize, fig.height=5, fig.width=10}
+ data_Tcell %>% dplyr::filter(Tcellcompartment == "CD8+",data_Tcell$Disease.phase == "acute" ) %>%
+ dplyr::count(flowsom) %>% 
+ ggplot(aes(x = flowsom, y = n, label = n))+
+ geom_col(position = "dodge") + geom_label() 
+```
+
+#### UMAP clusters
+
+* Plot each UMAP using only COVID-19, coloured by disease phase (acute or convalescent)
+* Do you observe specific areas where convalescent samples acumulate? What does this mean?
+
+```{r UMAP_clusters, fig.height=5, fig.width=7}
+data_Tcell %>% 
+  dplyr::filter(Tcellcompartment == "CD8+",data_Tcell$Disease.phase == "acute") %>% 
+  ggplot(aes(x = UMAP1, y=UMAP2, color = flowsom)) +
+  geom_point(alpha = 0.5,size = 1)+
+  guides(colour = guide_legend(ncol = 1,override.aes = list(size=3, alpha = 1))) +
+  theme_classic() + 
+  ggtitle("CD8+") +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+
+```
+
+
+#### Heatmap clusters
+
+* To understand the clusters we found, visualize in a heatmap the average expression of each marker in each cluster. 
+* Remember to do the corresponding transformation of the intensity values. 
+
+
+```{r heatmapClusters, fig.height=5, fig.width=5}
+
+data_Tcell %>% 
+ mutate_at(vars(sel_markers), asinh) %>% 
+ mutate_at(vars(sel_markers), scale) %>% 
+ dplyr::filter(Tcellcompartment == "CD8+" & Disease.phase == "acute") %>%
+ dplyr::select(sel_markers,flowsom) %>%
+ group_by(flowsom) %>%
+ summarise_at(vars(sel_markers), funs(mean(., na.rm=TRUE))) %>% 
+ pivot_longer(names_to = "markers", values_to = "avg_zscore", - flowsom) %>% 
+ mutate(markers = factor(markers,levels = sel_markers)) %>% 
+ ggplot(aes(x = flowsom, y = markers, fill = avg_zscore)) + 
+ geom_tile() + 
+ scale_fill_gradient2(low = "blue", mid = "white", high = "red", limits = c(-4,4)) 
+
+```
+
+* With the library "ComplexHeatmap" we can additionally group the clusters (dendogram) by their similarities.
+
+```{r heatmapOriginalClusters, fig.height=10, fig.width=10}
+
+markers_category <- c(rep("Differentiation",2),
+                     rep("Co-stimulation",4),
+                     rep("Co-inhibition",4),
+                     rep("Activation",7),
+                     rep("Chemokine receptor",4),
+                     rep("Others",9))
+
+markers_category <- factor(markers_category, 
+                          levels=c("Differentiation","Co-stimulation","Co-inhibition","Activation","Chemokine receptor","Others"))
+
+
+data_heatmap <- data_Tcell %>% 
+ mutate_at(vars(sel_markers), asinh) %>% 
+ mutate_at(vars(sel_markers), scale) %>% 
+ dplyr::filter(Tcellcompartment == "CD8+" & Disease.phase == "acute") %>%
+ dplyr::select(sel_markers,flowsom) %>%
+ group_by(flowsom) %>%
+ summarise_at(vars(sel_markers), funs(mean(., na.rm=TRUE))) %>%
+ column_to_rownames("flowsom")
+
+data_heatmap %>% t() %>% 
+ Heatmap(name = "z-score avg", 
+         cluster_rows = FALSE, 
+         cluster_columns = TRUE,
+         rect_gp = gpar(col = "white", lwd = 2),
+         column_dend_height = unit(4, "cm"),
+         column_names_rot = 45,
+         row_split = markers_category,
+         row_title_rot = 0
+ )
+
+```
+
+
+
 # 5. Cluster abundance
 
 * What is the abundance of each cluster in each sample? 
@@ -512,7 +656,7 @@ For the non-weekly analysis, we considered the first sample per patient when mul
 ```{r defineIDs}
 selected_ids <- data_Tcell %>% 
   dplyr::filter(Disease.phase == "acute") %>% 
- count(Individuals,id,Group,sev_merge,Days.post.symptom.onset) %>% 
+ dplyr::count(Individuals,id,Group,sev_merge,Days.post.symptom.onset) %>% 
  dplyr::select(-n) %>% 
  group_by(Individuals) %>%
  mutate(n_samples = 1:n()) %>% 
@@ -554,6 +698,36 @@ selected_ids <- data_Tcell %>%
  geom_jitter()+
  facet_wrap(~Rpheno, scale = "free") + 
  scale_fill_manual(values = color_severity) + 
- theme(axis.text.x = element_blank())
+ theme(axis.text.x = element_blank()) +
+  ggtitle('Rphenograph cluster abundances')
+```
 
+
+```{r boxplot_clust_flow_abundance, fig.height=10, fig.width=10}
+
+ data_Tcell %>% 
+ dplyr::filter(id %in% selected_ids, Tcellcompartment == "CD8+") %>% 
+ dplyr::count(id,sev_merge,Tcellcompartment,flowsom) %>% 
+ group_by(id,Tcellcompartment) %>% 
+ mutate(perc = n/sum(n)*100) %>% 
+ ungroup() %>% 
+  # When using the function count(), if a cluster is absent in a donor, it will not be counted as zero. 
+  # So we complete the count table by filling the missing clusters with a 0.
+ tidyr::complete(id,flowsom,fill = list(n=0,perc = 0)) %>% 
+ ungroup() %>% 
+ group_by(flowsom) %>% 
+ fill(Tcellcompartment, .direction = "downup") %>% 
+ ungroup() %>% 
+ group_by(id) %>% 
+ fill(sev_merge, .direction = "downup") %>% 
+ ungroup() %>% 
+ mutate(perc = ifelse(is.na(perc),0,perc)) %>% 
+ dplyr::filter(!is.na(Tcellcompartment)) %>% 
+ ggplot(aes(x = sev_merge, y = perc, fill = sev_merge)) + 
+ geom_boxplot() + 
+ geom_jitter()+
+ facet_wrap(~flowsom, scale = "free") + 
+ scale_fill_manual(values = color_severity) + 
+ theme(axis.text.x = element_blank()) +
+  ggtitle('flowsom cluster abundances')
 ```
