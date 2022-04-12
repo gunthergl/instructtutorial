@@ -96,6 +96,6 @@ You can get all information, the code under https://github.com/gunthergl/instruc
 Just let us know if you need help: 
 
  - Gunther Glehr (`prename`.`surname`@ukr.de)
- - Rosario Astaburuaga Garcia (`prename`.`midname`@charite.de)
+ - Rosario Astaburuaga-García (rosario.astaburuaga@charite.de)
  - Lev Petrov (`prename`.`surname`@charite.de)
 
