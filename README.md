@@ -5,7 +5,7 @@ In this tutorial we will analyse a public data set (Georg et al. 2021, https://d
 
 In this study, the authors performed CyTOF of whole blood samples from mild and severe COVID-19 patients during the acute and convalescent phase, and patients with other acute respiratory infections (Flu-like illness), as well as patients chronically infected by human immunodeficiency virus (HIV) or hepatitis B (HBV) and healthy controls. They analysed the T cell space and identified highly activated CD16+ T cells in severe COVID-19, which led the authors to hypothesise about the pathological role of these cytotoxic T cells. This hypothesis was then tested and confirmed with functional analyses, and found suitable mechanisms for their induction.
 
-In this tutorial you will learn how to perform such computational analysis either in T cells, B cells, or monocytes!
+In this tutorial you will learn how to perform such computational analysis in R, either for T cells, B cells, or monocytes!
 We invite you to give a look at the paper before the tutorial.
 
 See you soon!
