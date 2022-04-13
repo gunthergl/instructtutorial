@@ -1,5 +1,5 @@
 ---
-title: "Tutorial for the second Instruct course"
+title: "Tutorial for the second INsTRuCT course"
 author: "Gunther Glehr, Rosario Astaburuaga Garcia, Lev Petrov"
 date: "13.04.2022"
 output:
