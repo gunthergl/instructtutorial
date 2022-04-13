@@ -1,5 +1,6 @@
 ---
-title: "Tutorial for the second INsTRuCT course"
+title: "Basics of clustering"
+subtitle: "Implementation & differences between algorithms"
 author: "Gunther Glehr, Rosario Astaburuaga Garcia, Lev Petrov"
 date: "13.04.2022"
 output:

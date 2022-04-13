@@ -1,4 +1,4 @@
-# Tutorial for the second Instruct course
+# Basics of clustering
 
 # 1. Introduction 
 In this tutorial we will analyse a public data set (Georg et al. 2021, https://doi.org/10.1016/j.cell.2021.12.040) of single cell phospho-proteomics measured with Cytometry by Time of Flight (CyTOF). 
