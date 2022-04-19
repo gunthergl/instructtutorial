@@ -37,6 +37,8 @@ library(needs)
 library(dplyr)
 library(knitr)
 library(ggridges)
+library(grDevices) # to change the color in pheatmap
+
 prioritize(dplyr)
 
 theme_set(theme_classic())
@@ -124,10 +126,12 @@ $$
 
 ## Pre-gating of T cells
 
-### CD45+CD3+
-
 Using _ggplot()_ and _geom_point()_, generate a scatter plot to decide the gates.  
 We visualize just 10% of the data.
+
+
+### CD45+CD3+
+
 
 ```{r gateTcells1, fig.height=5, fig.width=5} 
 data_norm_sub %>% 
@@ -145,6 +149,7 @@ data_norm_sub %>%
 
 ### CD45+CD3+CD15-CD19-
 
+Exclude neutrophils (CD15+) and B cells (CD19+, they exchange antigens with T cells)
 
 ```{r gateTcells2, fig.height=5, fig.width=5}
 data_norm_sub %>% 
@@ -381,7 +386,7 @@ p3 <- data_Tcell %>%
   scale_color_manual(values = c("acute" = "red","convalescent"="black"), name = "")+
   theme_classic() + 
   ggtitle("TCRgd+ T cells") +
-  theme(legend.position = "none",plot.title = element_text(hjust = 0.5)) 
+  theme(plot.title = element_text(hjust = 0.5)) 
 
 
 plot_grid(p1,p2,p3,nrow = 1)
@@ -464,6 +469,7 @@ Due to time constraints, we will only cluster one T cell compartment, eg.: CD8+ 
 
 #### RPhenograph 
 
+**IMPORTANT!** In RPhenograph we define the number of nearest neighbours. 
 
 ```{r runRphenograph, results="hide"}
 start_time <- Sys.time()
@@ -501,7 +507,7 @@ data_Tcell <- data_Tcell %>% mutate(Rpheno = factor(Rpheno, levels = str_sort(un
 
 #### FlowSOM
 
-**IMPORTANT!** We have to define the number of clusters a priori.
+**IMPORTANT!** In FlowSOM we define the number of clusters.
 
 ```{r runflowsom, results="hide"}
 start_time <- Sys.time()
@@ -646,10 +652,10 @@ data_Tcell %>%
  group_by(Rpheno) %>%
  summarise_at(vars(sel_markers_Tcells), funs(mean(., na.rm=TRUE))) %>%
  pivot_longer(names_to = "markers", values_to = "avg_zscore", - Rpheno) %>%
- mutate(markers = factor(markers,levels = sel_markers_Tcells)) %>%
+ mutate(markers = factor(markers,levels = rev(sel_markers_Tcells))) %>%
  ggplot(aes(x = Rpheno, y = markers, fill = avg_zscore)) +
  geom_tile() +
- scale_fill_gradient2(low = "blue", mid = "white", high = "red", limits = c(-4,4))
+ scale_fill_gradient2(low = "blue", mid = "white", high = "red", limits = c(-3.5,3.5))
 
 ```
 
@@ -664,19 +670,20 @@ data_Tcell %>%
  group_by(flowsom) %>%
  summarise_at(vars(sel_markers_Tcells), funs(mean(., na.rm=TRUE))) %>% 
  pivot_longer(names_to = "markers", values_to = "avg_zscore", - flowsom) %>% 
- mutate(markers = factor(markers,levels = sel_markers_Tcells)) %>% 
+ mutate(markers = factor(markers,levels = rev(sel_markers_Tcells))) %>% 
  ggplot(aes(x = flowsom, y = markers, fill = avg_zscore)) + 
  geom_tile() + 
- scale_fill_gradient2(low = "blue", mid = "white", high = "red", limits = c(-4,4)) 
+ scale_fill_gradient2(low = "blue", mid = "white", high = "red",limits = c(-3.5,3.5))
 ```
 
 ### Heatmap (pheatmap) {.tabset}
 
-With the library "pheatmap" we can additionally group the clusters (dendogram) and markers by their similarities.
+With the library "pheatmap" we can additionally group the clusters (dendogram) and group the markers by category (annotation).
 
 #### RPhenograph
 
 ```{r heatmapClusters_pheatmap, fig.height=5, fig.width=5}
+
 
 data_heatmap <- data_Tcell %>%
  mutate_at(vars(sel_markers_Tcells), asinh) %>%
@@ -687,8 +694,24 @@ data_heatmap <- data_Tcell %>%
  summarise_at(vars(sel_markers_Tcells), funs(mean(., na.rm=TRUE))) %>%
  column_to_rownames("Rpheno")
 
+annotation_rows <- data.frame( marker_category = c(rep("Differentiation",2), 
+                               rep("Co-stimulation",4), 
+                               rep("Co-inhibition",4),
+                               rep("Activation",7),
+                               rep("Chemokine receptor",4),
+                               rep("Others",9)))
+
+rownames(annotation_rows) <- sel_markers_Tcells
+
 data_heatmap %>% t() %>%
-  pheatmap()
+  pheatmap(cluster_rows = F, 
+           cluster_cols = T, 
+           annotation_row = annotation_rows, 
+           annotation_names_row = F, 
+           gaps_row = c(2, 6, 10, 17, 21), 
+           breaks = seq(-3.5, 3.5, length.out = 100),
+           color = colorRampPalette(c("blue", "white", "red"))(100)
+)
 
 
 ```
@@ -706,8 +729,24 @@ data_heatmap <- data_Tcell %>%
  summarise_at(vars(sel_markers_Tcells), funs(mean(., na.rm=TRUE))) %>%
  column_to_rownames("flowsom")
 
+annotation_rows <- data.frame( marker_category = c(rep("Differentiation",2), 
+                               rep("Co-stimulation",4), 
+                               rep("Co-inhibition",4),
+                               rep("Activation",7),
+                               rep("Chemokine receptor",4),
+                               rep("Others",9)))
+
+rownames(annotation_rows) <- sel_markers_Tcells
+
 data_heatmap %>% t() %>%
-  pheatmap()
+  pheatmap(cluster_rows = F, 
+           cluster_cols = T, 
+           annotation_row = annotation_rows, 
+           annotation_names_row = F, 
+           gaps_row = c(2, 6, 10, 17, 21), 
+           breaks = seq(-3.5, 3.5, length.out = 100),
+           color = colorRampPalette(c("blue", "white", "red"))(100)
+          )
 
 
 ```
