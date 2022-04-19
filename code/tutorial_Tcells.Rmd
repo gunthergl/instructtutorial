@@ -22,36 +22,66 @@ knitr::opts_chunk$set(fig.align='center', message=F, warning=F, cache=T,cache.la
 
 ## Load libraries
 
+If packages are already installed on your system, you could just use `library(tibble)`. Otherwise you have to install it first, here you have multiple options: 
+
+- Standard: `install.packages("insert_your_package_name")`
+- Automated: `pacman::p_load("insert_your_package_name")`
+This loads your package and installs it if not already present.
+
+Usually, the packages you install are retrieved from `CRAN`: https://cran.r-project.org/ but not all packages are hosted there. 
+Especially for bio-related packages, there is `Bioconductor`: https://bioconductor.org/ 
+
+To install packages from Bioconductor, you can either follow the instructions on the package site on Bioconductor (e.g. https://bioconductor.org/packages/release/bioc/html/ComplexHeatmap.html ) which includes installing the `BiocManager` package. 
+
+Also `pacman` _also_ searches Bioconductor, but _only_ if BiocManager is installed before!
+
+
+Some packages are neither on `CRAN` nor on `Bioconductor` but on `github`. `github` is a platform to versionize and distribute code. To install `github` packages, you can:
+
+- Standard: `devtools::install_github("JinmiaoChenLab/Rphenograph")`
+- Automated: `pacman::p_load_gh("JinmiaoChenLab/Rphenograph")`
+
+Additionally, you might need Rtools to build R packages: https://cran.r-project.org/bin/windows/Rtools/rtools40.html
+If you just installed rtools you will need to restart Rstudio.
+
+
 ```{r lib}
-library(tibble)
-library(tidyr)
-library(readr)
-library(stringr)
-library(ggplot2)
-library(cowplot)
-library(uwot)
-library(Rphenograph)
-library(pheatmap)
-library(cytofkit)
-library(needs)
-library(dplyr)
-library(knitr)
-library(ggridges)
-prioritize(dplyr)
+
+if(!require(pacman)){
+	install.packages("pacman") # If not already installed
+}
+pacman::p_load("tidyverse", install=TRUE)
+pacman::p_load("cowplot", install=TRUE)
+pacman::p_load("uwot", install=TRUE)
+pacman::p_load("data.table", install=TRUE)
+pacman::p_load("pheatmap", install=TRUE)  # Todo
+pacman::p_load("needs", install=TRUE)
+pacman::p_load("knitr", install=TRUE)
+pacman::p_load("ggridges", install=TRUE)
+
+# Install BiocManager such that pacman can then find ComplexHeatmap by its own
+pacman::p_load("BiocManager", install=TRUE)
+pacman::p_load("ComplexHeatmap", install=TRUE)
+
+
+# Github packages have to be dealt in a special way
+# However you install them, you _need_ the "devtools" package
+pacman::p_load("devtools", install=TRUE)
+# Additionally, you might need "Rtools"
+pacman::p_load_gh("JinmiaoChenLab/Rphenograph", install=TRUE)
+
+library(cytofkit)  # Todo
+prioritize(dplyr)  # Must be tested
 
 theme_set(theme_classic())
 
-# if(!require(devtools)){
-#   install.packages("devtools") # If not already installed
-# }
-# devtools::install_github("JinmiaoChenLab/Rphenograph")
 ```
 
 --- 
 
 ## Overview of the tutorial
 
-In this tutorial we will analyse a public data set ([Georg _et al._ 2021](https://www.cell.com/cell/pdf/S0092-8674(21)01562-2.pdf)) of single cell phopho-proteomics measured with Cytometry by Time of Flight (CyTOF). In this study, the authors performed CyTOF of whole blood samples from mild and severe COVID-19 patients during the acute and convalescent phase, and patients with other acute respiratory infections (Flu-like illness), as well as patients chronically infected by human immunodeficiency virus (HIV) or hepatitis B (HBV) and healthy controls. They analysed the T cell space and identified highly activated CD16+ T cells in severe COVID-19, which led the authors to hypothesise about the pathological role of these cytotoxic T cells. This hypothesis was then tested and confirmed with functional analyses, and found suitable mechanisms for their induction. In this tutorial you will learn how to perform such computational analysis either in T cells, B cells, or monocytes!
+In this tutorial we will analyse a public data set ([Georg _et al._ 2021](https://www.cell.com/cell/pdf/S0092-8674(21)01562-2.pdf)) of single cell phospho-proteomics measured with Cytometry by Time of Flight (CyTOF). In this study, the authors performed CyTOF of whole blood samples from mild and severe COVID-19 patients during the acute and convalescent phase, and patients with other acute respiratory infections (Flu-like illness), as well as patients chronically infected by human immunodeficiency virus (HIV) or hepatitis B (HBV) and healthy controls. They analysed the T cell space and identified highly activated CD16+ T cells in severe COVID-19, which led the authors to hypothesise about the pathological role of these cytotoxic T cells. This hypothesis was then tested and confirmed with functional analyses, and found suitable mechanisms for their induction. In this tutorial you will learn how to perform such computational analysis either in T cells, B cells, or monocytes!
 
 Due to time constrains, we will analyse 5% of the data set. We will start by manually pre-gating the immune cell type of interest, then we will visually explore the data by reducing the dimensionality and plotting a UMAP. After this, we will cluster the data to find discrete communities of cells, using two different algorithms for comparison. Then we will annotate/give names to these clusters by looking at the average protein expression in each community/cluster. Finally, we will calculate the abundance of each cluster per donor and identify COVID-19 or severe-specific clusters. 
 
@@ -61,23 +91,41 @@ Due to time constrains, we will analyse 5% of the data set. We will start by man
 
 ## Read the data
 
-We start reading the data table "data_norm_sub.csv" with the function _read.csv()_. The data was already pre-processed (filter-out dead cells, doublets, debris, and batch-corrected).
+We start reading the data table "data_norm_sub.csv" with the function `read.csv()`. The data was already pre-processed 
+    1. Remove dead cells ???HOW
+    2. Remove doublets ???HOW
+    3. Remove debris ???HOW
+    4. and batch-corrected ???HOW
+
 
 ```{r read, results="hide"}
-data_norm_sub <- read.csv("~/Documents/INsTRuCT_workshop/data_norm_sub5.csv")
+# results='hide' does not print messages to the generated output file
+
+# Standard read.csv, works for most things, but fread is faster. 
+# data_norm_sub <- read.csv("~/Documents/INsTRuCT_workshop/data_norm_sub5.csv")
+
+data_norm_sub_fread <- data.table::fread("../data/data_norm_sub5.csv")
+# fread is a special format, such that we have to convert it first into a usual data.frame
+data_norm_sub <- data.frame(data_norm_sub_fread)
 ```
 
 What are the columns? What are the rows?
 
 ```{r colnamesdata}
+# Show the first 5 rows and all columns --> Rows are cells, columns are features per cell
+print(data_norm_sub[1:5, ])
+
+# Then take a look at only the column names
 colnames(data_norm_sub)
 ```
 
-Create a vector with the name of each measured protein (what we call "the CyTOF panel").
+Not all features of the cell are actual cell parameters. We want to subset the values to only these parameters. Therefore, create a vector with the name of each measured protein (what we call "the CyTOF panel").
 
 ```{r panelandcolors, results="hide"}
 panel <- colnames(data_norm_sub)[15:54]
 
+# color_severity is a named vector which we will use later. 
+# #xxxxxx is a html-coded color code. 
 color_severity <- c(
   "healthy" = "#0449FF",
   "FLI" =  "#807F7F",
@@ -92,11 +140,19 @@ Let's look at how the values of markers are distributed:
 
 ```{r panel_linear, fig.height=10, fig.width=10}
 data_norm_sub %>% 
-    sample_frac(0.2) %>% 
-    pivot_longer(names_to = "marker",values_to = "value",panel) %>%
-    ggplot(aes(value)) +
-    geom_density() + facet_wrap(~marker, scale = "free") + 
-  theme_classic()
+    # take only 20% of the data such that the plots are generated faster
+    sample_frac(0.2) %>%
+    # ?Todo what is happening here? 
+    pivot_longer(names_to = "marker", values_to = "value", panel) %>%
+    # start plotting, x-axis is the value
+    ggplot(aes(x=value)) +
+    # We want density plots, so how the values on the x-axis are distributed
+    geom_density() + 
+    # facet_wrap splits the plots according to the specified column, here "marker"
+    # scale="free" tells that the x-axis and y-axis are not the same for each plot
+    facet_wrap(~marker, scale = "free") + 
+    # theme_classic() sets the look of the final plot
+    theme_classic()
 ```
 
 We notice that these are skewed distributions: Many small values, some very large values. Therefore, it makes more sense to look at these on a logarithmic scale:
@@ -104,17 +160,27 @@ We notice that these are skewed distributions: Many small values, some very larg
 
 ```{r panel_log, fig.height=10, fig.width=10}
 data_norm_sub %>% 
+    # take only 20% of the data such that the plots are generated faster
     sample_frac(0.2) %>% 
+    # ?Todo what?
     pivot_longer(names_to = "marker",values_to = "value",panel) %>%
+    # mutate() generates a new column "log_value" and takes the logaritm (log())
+    # of the column "value" but adds 1 before. 
+    # We add 1 because some "value"-s can be 0 and the logarithm is not defined here
     mutate(log_value = log(value+1)) %>% 
-    ggplot(aes(log_value)) +
-    geom_density() + facet_wrap(~marker, scale = "free")+ 
+    # Start plotting, define "log_value" as x-axis
+    ggplot(aes(x=log_value)) +
+    # Density plots, how are the values on the x-axis distributed
+    geom_density() + 
+    # Split the plots according to the "marker" column, different axis
+    facet_wrap(~marker, scale = "free") +
+    # How the plot looks 
     theme_classic()
 ```
 
-In the CyTOF community, people commonly use the hypebolic arcsine (arcsinh) transformation: 
+In the CyTOF community, people commonly use the hyperbolic arcsine (asinh) transformation: 
 $$
-\rm arsinh (x) = \ln(x + \sqrt{x^2+1})
+\rm asinh (x) = \ln(x + \sqrt{x^2+1})
 $$
 
 
@@ -126,18 +192,32 @@ $$
 
 ### CD45+CD3+
 
-Using _ggplot()_ and _geom_point()_, generate a scatter plot to decide the gates.  
+???Why geom_point and not geom_hex()
+Using `ggplot()` and `geom_point()`, generate a scatter plot to decide the gates.  
 We visualize just 10% of the data.
 
 ```{r gateTcells1, fig.height=5, fig.width=5} 
 data_norm_sub %>% 
- filter(CD3>0, CD45>0) %>% 
+ # Use only 10% of the data 
  sample_frac(0.1) %>% 
- mutate_at(vars(panel),asinh) %>% 
+ # Before, we used mutate() to generate a single new column. 
+ # mutate_at() changes all values (here vars(panel)) and applies the following 
+ # function (here asinh()) 
+ mutate_at(vars(panel), asinh) %>% 
+ # ???Why are we using only positive values here?
+ # filter retains only rows where the rules inside apply, 
+ # so each row where CD45>0 and CD3>0 stays, all other rows are removed
  filter(CD45>0, CD3>0) %>% 
+ # Make a plot where the x-axis are the CD45 values, and the y-axis are the CD3 values
  ggplot(aes(x=CD45, y=CD3)) +
+ # Each value will be a _point_ with a certain size
+ # and a ???Farbdeckung? Wort suchen.
  geom_point(size = 0.01, alpha = 0.1) +
+ # Additionally to the points, plot the density of the points in 2 dimensions
  geom_density_2d()+
+ # Plot a rectangle with the given coordinates
+ # We found the coordinates by hand
+ # ??? Why alpha=0
  geom_rect(mapping=aes(xmin=1, xmax=8, ymin=4.3, ymax=8), color="black", alpha=0) + 
   theme_classic()
 
@@ -148,52 +228,96 @@ data_norm_sub %>%
 
 ```{r gateTcells2, fig.height=5, fig.width=5}
 data_norm_sub %>% 
- mutate_at(vars(panel),asinh) %>% 
- filter(CD3>4.3,
-               CD45>1,
-               CD15>0,CD19>0) %>% 
+ # mutate_at() changes all values (here vars(panel)) and applies the following 
+ # function (here asinh()) 
+ mutate_at(vars(panel), asinh) %>% 
+ # Retain all cells where the following rules apply
+ filter(
+    CD3>4.3,
+    CD45>1,
+    CD15>0,
+    CD19>0
+    ) %>% 
+# Plot CD15 (y-axis) vs CD19 (x-axis)
  ggplot(aes(x=CD19, y=CD15)) +
+# Plot points with certain size and color alpha
  geom_point(size = 0.01, alpha = 0.1) +
+ # Make 2d-density plots
  geom_density_2d()+
+ # Plot a rectangle
+ # ??? Why alpha=0
  geom_rect(mapping=aes(xmin=0, xmax=2.9, ymin=0, ymax=4), color="black", alpha=0) + 
   theme_classic()
 ```
 
 ### Percentage of T cells
 
-We first add a column to the data table where each cell gets the classification T cell = {TRUE, FALSE} according to your gating strategy. Then let's see if the percentage of T cells make sense and how does it look per disease group (variable _sev_merge_). 
+We first add a column to the data table where each cell gets the classification T cell = {TRUE, FALSE} according to your gating strategy. Then let's see if the percentage of T cells make sense and how it looks per disease group (variable `sev_merge`). 
 
 
 ```{r columnTcells}
-data_norm_sub <- data_norm_sub %>% mutate(Tcell = ifelse(CD3>sinh(4.3) & CD45>sinh(1) & CD15<sinh(4) & CD19<sinh(2.9), TRUE, FALSE))
+data_norm_sub <- data_norm_sub %>% 
+    # ifelse(logical_value, if TRUE, if FALSE)
+    # ifelse returns the value inside if TRUE when the logical value is TRUE, otherwise the other value.
+
+    # ???Why sinh? replace.  
+    mutate(Tcell = ifelse(CD3>sinh(4.3) & CD45>sinh(1) & CD15<sinh(4) & CD19<sinh(2.9), TRUE, FALSE))
 ```
 
 
 ```{r percTcells}
-data_norm_sub <- data_norm_sub %>% mutate(sev_merge = factor(sev_merge,levels = c("healthy","FLI","HIV","HBV","mild/moderate","severe/critical")))
+data_norm_sub <- data_norm_sub %>%
+    # Factors are R-internal special vectors having "levels".
+    # All values must be a value of "levels". Internally, a factor is a numeric value pointing
+    # to one of the levels.
+    # ggplot is smart enough to handle factors properly (better than only vectors if needed)!
+    mutate(
+        sev_merge = factor(
+            sev_merge, 
+            levels = c("healthy","FLI","HIV","HBV","mild/moderate","severe/critical")
+        )
+    )
 
 data_norm_sub %>% 
- count(id,Tcell,sev_merge,Disease.phase) %>% 
+ count(id,Tcell,sev_merge,Disease.phase) %>%
+ # tidyverse functions can leverage "groups" of data, but you have to specify first
+ # what the group is defined on. 
+ # Here we want to group the cells based on their (sample-) id 
  group_by(id) %>% 
- mutate(perc = n/sum(n)*100) %>% 
+ # ??? What is happening
+ mutate(perc = n/sum(n)*100) %>%
+ # ?Wtf 
  ungroup() %>% 
+ # Select only Tcells (As "Tcell" is a True/False column)
  filter(Tcell) %>% 
- ggplot(aes(y = perc, x = sev_merge, fill = sev_merge)) + 
+ # plot the just calculated percentage on the y-axis
+ # And the severity on the x-axis
+ # "fill" fills plots, usually used for coloring. 
+ ggplot(aes(y = perc, x = sev_merge, fill = sev_merge)) +
+ # Make a boxplot per fill-value. That happens automatically. 
+ # Alpha sets the color-density
  geom_boxplot(position=position_dodge(1), alpha = 0.7)+
+ # ?Todo: What happens here
  geom_dotplot(binaxis='y', stackdir='center',
               position=position_dodge(1), alpha = 0.7)+
+# facet_grid splits the plots according to multiple values, you could even use multiple splitting-values
+# with "free_x" we allow the x-axis to vary between plots, but the y-axis is fixed.  
  facet_grid(~ Disease.phase, space = "free_x", scale = "free_x") + 
+ # Previously we defined the coloring for the severity stages, here we apply it. 
  scale_fill_manual(values = color_severity)+
+ # Set y-axis label
  ylab("Percentage of T cells (%)") + 
+ # Set x-axis label to empty ("")
  xlab("")+
  theme_classic()+ 
+ # Remove the x-axis text and ticks. 
  theme(axis.text.x=element_blank(),
        axis.ticks.x=element_blank())
 ```
 
 ### Manual gating of T cell comparment (CD4+, CD8+, TCRgd+)
 
-We are actually interested in finding T cell communities but in each main T cell compartment (CD4+, CD8+ and TCRgd+). For this, we manually gate T cells based on CD8 and TCRgd channels.  
+We are actually interested in finding T cell communities but in each main T cell compartment (CD4+, CD8+ and TCRgd+). For this, we manually gate T cells based on CD8 and TCRgd parameters.  
 
 Gates were defined per CyTOF run. Due to time restrictions, we are providing the gates in asinh-scale. Eg.: If the cell has an asinh-signal of TCRgd lower or equal than the threshold, and a asinh-signal of CD8 lower or equal than the corresponding CD8 threshold, then the cell is CD4+.  
 
@@ -201,6 +325,7 @@ We then create a new column "Tcellcompartment" and classify the cell according t
 
 ```{r gatesTcells}
 gates <- tibble(
+    # Each "run" has different gates we found manually.
  Run = as.numeric(str_sort(unique(data_norm_sub$Run))),
  CD8threshold = c(3.9,4.15,3.7,3.7,4.3,4.1,3.8,4.4,5.1,4.85,4.55,4.55,4,5,4.2),
  TCRgdthreshold = c(2.85,2.85,2.85,2.85,2.85,2.85,2.85,2.85,2.85,2.85,2.85,2.85,2.85,2.85,3.7))
@@ -210,7 +335,11 @@ gates <- tibble(
 data_Tcell <- data_norm_sub %>% filter(Tcell)
 
 data_Tcell <- data_Tcell %>% 
+# Show what happens here using left join
+# Left join takes the "left" argument, here given implicitely with "%>%", so it is data_Tcell
+# Then the dataframe "gates" is joined with data_Tcell using ???WHICH COLUMN AS JOIN?
  left_join(gates) %>% 
+ # ?Todo: What is happening?
  mutate(Tcellcompartment = case_when( asinh(TCRgd) <= TCRgdthreshold & asinh(CD8) <= CD8threshold ~ "CD4+",
                                       asinh(TCRgd) <= TCRgdthreshold & asinh(CD8) > CD8threshold ~ "CD8+",
                                       TRUE ~ "TCRgd+"))
@@ -221,25 +350,38 @@ data_Tcell <- data_Tcell %>%
 
 ```{r visualizeGateTcellcompartment, fig.height=5, fig.width=8,  results = 'asis'}
 data_Tcell %>% 
+# Transform all panel columns with asinh
   mutate_at(vars(panel),asinh) %>% 
+  # Plot CD8 (x-axis) and TCRgd (y-axis)
    ggplot(aes(x=CD8, y=TCRgd)) +
+   # Use points, color them according to Tcellcompartment with certain size and alpha. 
    geom_point(aes(color = Tcellcompartment),size = 0.5, alpha = 0.5) +
-   theme_classic()+ 
+   theme_classic()+
+   # ? Todo: What is happening here? 
    guides(colour = guide_legend(override.aes = list(size=5)))
 ```
 
 
 ```{r percTcellcompartmentAllSamples, fig.height=5, fig.width=5}
 data_Tcell %>% 
- count(Tcellcompartment) %>% 
- mutate(perc = n/sum(n)*100) %>% 
- ggplot(aes(x = Tcellcompartment, y = perc, fill = Tcellcompartment, label = round(perc,2) )) + 
- geom_col(position = "dodge") + 
- geom_label() + 
-  theme_classic()+ 
- theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1), legend.position = "none") +   
- ylab("Percentage of each T cell compartment from all T cells (%)") + 
- xlab("")
+    # Count how many values there are in every Tcellcompartment
+    count(Tcellcompartment) %>% 
+    # ?Todo: What is happening with that mutate, also before?
+    mutate(perc = n/sum(n)*100) %>% 
+    # Plot the percentage (y-axis) of each Tcellcompartment (x-axis) colored by Tcellcompartment
+    # and label it with the percentage, rounded to 2 decimal points
+    ggplot(aes(x = Tcellcompartment, y = perc, fill = Tcellcompartment, label = round(perc,2) )) + 
+    # ? Todo: What is geom_col doing?
+    geom_col(position = "dodge") + 
+    # We defined WHAT the labels should contain, now we actually plot them
+    geom_label() + 
+    theme_classic()+ 
+    # Rotate the x-axis label, remove the legend
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1), legend.position = "none") +   
+    # Set the y-axis label
+    ylab("Percentage of each T cell compartment from all T cells (%)") + 
+    # Remove the x-axis label
+    xlab("")
 
 ```
 
@@ -250,41 +392,74 @@ data_Tcell %>%
 
 ## UMAP {.tabset}
 
-We now compute the UMAPs for each T cell compartment across all samples (acute and convalescent), and using all markers, except the channels we used for gating, and also excluding IgD, IgM, CD21, and CD14.  
+We now compute the UMAPs for each T cell compartment across all samples (acute and convalescent). We use all markers, except the parameters we used for gating. We also exclude IgD, IgM, CD21, and CD14.  ??? Why do we exclude the gating-parameters and the other parameters?
 
-We define a vector "sel_markers_Tcells" with the selected markers to be used for the calculation of the UMAP.
+We define a vector "sel_markers_Tcells" removing all parameters we do not want to include for the calculation of the UMAP.
 
 ```{r sel_markers_Tcells}
+# panel %in% c("text1", "text2", ...) 
+#   Returns a vector which is TRUE if its corresponding value in "panel" is in the vector on the right
+#   and FALSE if it is not. 
+# ! panel %in% c("text1", "text2", ...)
+#   inverts this logical vector, so FALSE if value is contained in the right, TRUE if not. 
+# panel[!panel %in% c("CD45","CD3", "CD19","CD15","CD8","TCRgd","IgD","IgM","CD21","CD14")]
+#   selects the TRUE values in "panel" according to the just specified vector. 
 sel_markers_Tcells <- panel[!panel %in% c("CD45","CD3", "CD19","CD15","CD8","TCRgd","IgD","IgM","CD21","CD14")]
 
 ```
 
-Before calculating the UMAP, is important we transform our data (_asinh_) and apply z-score normalization (function _scale_). Why?
+Before calculating the UMAP, is important we transform our data (`asinh`) and apply z-score standardization (function `scale`). Why?
 
 ```{r computeUMAP}
+transformed_data <- data_Tcell %>%
+    # Apply asinh() on all columns defined by sel_markers_Tcells
+    mutate_at(vars(sel_markers_Tcells), asinh) %>% 
+    # Then apply scale() on all columns defined by sel_markers_Tcells
+    mutate_at(vars(sel_markers_Tcells), scale) %>%
+    # Select only the sel_markers_Tcells columns
+    select(sel_markers_Tcells)
 
-UMAP_TCRgd <- data_Tcell %>%
-  mutate_at(vars(sel_markers_Tcells), asinh) %>% 
-  mutate_at(vars(sel_markers_Tcells), scale) %>% 
-  filter(Tcellcompartment == "TCRgd+") %>%
-  select(sel_markers_Tcells) %>%
-  uwot::umap(n_neighbors = 30,spread = 1, min_dist = 0.5,metric = "euclidean", verbose = TRUE, fast_sgd = TRUE)
+UMAP_TCRgd <- transformed_data %>%
+    # Filter all cells which are TCRgd+ 
+    filter(Tcellcompartment == "TCRgd+") %>%
+    # Calculate UMAP with defined hyperparameters
+    uwot::umap(
+        n_neighbors = 30,
+        spread = 1, 
+        min_dist = 0.5, 
+        metric = "euclidean", 
+        verbose = TRUE, 
+        fast_sgd = TRUE
+    )
 
-UMAP_CD4 <- data_Tcell %>%
-  mutate_at(vars(sel_markers_Tcells), asinh) %>% 
-  mutate_at(vars(sel_markers_Tcells), scale) %>% 
-  filter(Tcellcompartment == "CD4+") %>%
-  select(sel_markers_Tcells)  %>%
-  uwot::umap(n_neighbors = 30,spread = 1,min_dist = 0.5,metric = "euclidean", verbose = TRUE, fast_sgd = TRUE)
+UMAP_CD4 <- transformed_data %>%
+    # Filter all cells which are CD4+ 
+    filter(Tcellcompartment == "CD4+") %>%
+    # Calculate UMAP with defined hyperparameters
+    uwot::umap(
+        n_neighbors = 30,
+        spread = 1, 
+        min_dist = 0.5, 
+        metric = "euclidean", 
+        verbose = TRUE, 
+        fast_sgd = TRUE
+    )
 
-UMAP_CD8 <- data_Tcell %>%
-  mutate_at(vars(sel_markers_Tcells), asinh) %>% 
-  mutate_at(vars(sel_markers_Tcells), scale) %>% 
-  filter(Tcellcompartment == "CD8+") %>%
-  select(sel_markers_Tcells) %>% 
-  uwot::umap(n_neighbors = 30,spread = 1,min_dist = 0.5,metric = "euclidean", verbose = TRUE, fast_sgd = TRUE)
+UMAP_CD8 <- transformed_data %>%
+    # Filter all cells which are CD8+  
+    filter(Tcellcompartment == "CD8+") %>%
+    # Calculate UMAP with defined hyperparameters
+    uwot::umap(
+        n_neighbors = 30,
+        spread = 1, 
+        min_dist = 0.5, 
+        metric = "euclidean", 
+        verbose = TRUE, 
+        fast_sgd = TRUE
+    )
 
-#### Add UMAP information to data frame
+
+#### Add UMAP information to the complete data frame
 
 data_Tcell$UMAP1 <- NA
 data_Tcell$UMAP2 <- NA
@@ -300,7 +475,8 @@ data_Tcell$UMAP2[data_Tcell$Tcellcompartment == "TCRgd+"] <- UMAP_TCRgd[,2]
 
 ```
 
-We now plot each UMAP, coloured by severity., disease phase, and intensity of a selected marker. Recommendation: subsample CD4+ and CD8+ T cells for visualization, using _sample_n_, or _sample_frac_. 
+We now plot each UMAP, coloured by severity, disease phase, and intensity of a selected marker. 
+Recommendation: Subsample CD4+ and CD8+ T cells for visualization, using `sample_n()`, or `sample_frac`. 
 
 ### Severity
 
@@ -310,38 +486,53 @@ Do you observe specific areas where CV19 samples accumulate? What does this mean
 
 
 p1 <- data_Tcell %>% 
-  filter(Tcellcompartment == "CD4+") %>% 
-  sample_n(30000) %>% 
-  ggplot(aes(x = UMAP1, y=UMAP2, color = sev_merge)) +
-  geom_point(alpha = 0.5,size = 2)+
-  guides(colour = guide_legend(ncol = 1,override.aes = list(size=3, alpha = 1))) +
-  scale_color_manual(values = color_severity, name = "")+
-  theme_classic() + 
-  ggtitle("CD4+ T cells") +
-  theme(legend.position = "none",plot.title = element_text(hjust = 0.5)) 
+    # Select CD4+ Tcell compartment
+    filter(Tcellcompartment == "CD4+") %>% 
+    # Sample 30000 rows (=cells)
+    sample_n(30000) %>% 
+    # Plot the two just calculated UMAPs, color according to severity
+    ggplot(aes(x = UMAP1, y=UMAP2, color = sev_merge)) +
+    # Plot points
+    geom_point(alpha = 0.5,size = 2) +
+    # ? Todo: What is happening?
+    guides(colour = guide_legend(ncol = 1,override.aes = list(size=3, alpha = 1))) +
+    # Use our previously defined colors
+    scale_color_manual(values = color_severity, name = "")+
+    theme_classic() + 
+    # Set a proper title!
+    # Always set proper titles. The idea is that you should be able to send a plot to you boss and
+    # he should understand what happens by just looking at the plot. 
+    ggtitle("CD4+ T cells") +
+    # legend.position="none" removes the legend
+    # plot.title = element_text(hjust...) adjusts the horizontal adjustment (placing) of the title. 
+    theme(legend.position = "none",plot.title = element_text(hjust = 0.5)) 
 
+# ?Todo
 p2 <- data_Tcell %>% 
-  filter(Tcellcompartment == "CD8+") %>% 
-  sample_n(30000) %>% 
-  ggplot(aes(x = UMAP1, y=UMAP2, color = sev_merge)) +
-  geom_point(alpha = 0.5,size = 2)+
-  guides(colour = guide_legend(ncol = 1,override.aes = list(size=3, alpha = 1))) +
-  scale_color_manual(values = color_severity, name = "")+
-  theme_classic() + 
-  ggtitle("CD8+ T cells") +
-  theme(legend.position = "none",plot.title = element_text(hjust = 0.5)) 
+filter(Tcellcompartment == "CD8+") %>% 
+sample_n(30000) %>% 
+ggplot(aes(x = UMAP1, y=UMAP2, color = sev_merge)) +
+geom_point(alpha = 0.5,size = 2)+
+guides(colour = guide_legend(ncol = 1,override.aes = list(size=3, alpha = 1))) +
+scale_color_manual(values = color_severity, name = "")+
+theme_classic() + 
+ggtitle("CD8+ T cells") +
+theme(legend.position = "none",plot.title = element_text(hjust = 0.5)) 
 
+# ?Todo
 p3 <- data_Tcell %>% 
-  filter(Tcellcompartment == "TCRgd+") %>% 
-  ggplot(aes(x = UMAP1, y=UMAP2, color = sev_merge)) +
-  geom_point(alpha = 0.5,size = 3)+
-  guides(colour = guide_legend(ncol = 1,override.aes = list(size=3, alpha = 1))) +
-  scale_color_manual(values = color_severity, name = "")+
-  theme_classic() + 
-  ggtitle("TCRgd+ T cells") +
-  theme(legend.position = "right", legend.direction = "vertical",plot.title = element_text(hjust = 0.5)) 
+filter(Tcellcompartment == "TCRgd+") %>% 
+ggplot(aes(x = UMAP1, y=UMAP2, color = sev_merge)) +
+geom_point(alpha = 0.5,size = 3)+
+guides(colour = guide_legend(ncol = 1,override.aes = list(size=3, alpha = 1))) +
+scale_color_manual(values = color_severity, name = "")+
+theme_classic() + 
+ggtitle("TCRgd+ T cells") +
+theme(legend.position = "right", legend.direction = "vertical",plot.title = element_text(hjust = 0.5)) 
 
-
+# Until now we did CALCULATE the plots, but not actually plot them, that is the idea of ggplot. 
+# First BUILD the plots, only plot them at the very end. 
+# With plot_grid(..., nrow=1) we define that all sub-plots (p1, p2, p3) are plotted in one row. 
 plot_grid(p1,p2,p3,nrow = 1)
 
 ```
@@ -840,6 +1031,9 @@ Doesn’t have to be a proper PowerPoint, you can just open the R Markdown and g
 
 Following questions should be touched upon:  
 
+
+??? Do we have answers to all of these things?
+
 * Pre-gating: 
   + What is the purpose of doing it? 
   + List pros and cons
@@ -857,7 +1051,14 @@ Following questions should be touched upon:
   + Which names would you give to the clusters we found?
 
 * Interpretation of results in the context of acute COVID-19 using heatmaps and cluster abundances.
-* Feedback: was it helpful? :)
+* Future plans: 
+    - Are there projects where you need to apply clustering?
+    - Have you worked with cytometry data already?
+    - What do you usually use for cytometry analysis?
+    - Are pou planning to change to R for certain steps in your analysis?
+    - What would be necessary to change to R? More training, more time to get familiar with, etc.?
+    - Do you see advantages of R compared to your usual analysis-suite?
+
 
 
 
