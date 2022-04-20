@@ -65,7 +65,12 @@ Due to time constrains, we will analyse 5% of the data set. We will start by man
 
 ## Read the data
 
-We start reading the data table "data_norm_sub.csv" with the function _read.csv()_. The data was already pre-processed (filter-out dead cells, doublets, debris, and batch-corrected).
+We start reading the data table "data_norm_sub.csv" with the function _read.csv()_. 
+* The data has already been pre-processed
+	+ calibration beads excluded (gating on Ce140 Bead channel)
+	+ doublets and debris excluded (gating on DNA channels and Event_length)
+	+ dead cells excluded (gating on Live-Dead mDOTA marker)
+	+ batch corrected (normalization using BatchAdjust method, linearly scales signal distributions to similar ranges using percentiles)
 
 ```{r read, results="hide"}
 data_norm_sub <- read.csv("~/Documents/INsTRuCT_workshop/data_norm_sub5.csv")
