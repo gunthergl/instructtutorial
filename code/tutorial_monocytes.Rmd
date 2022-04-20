@@ -1,0 +1,818 @@
+---
+title: "INsTRuCT Tutorial 2022 (Monocytes)"
+author: "R. Astaburuaga-García, L. Petrov, G. Glehr"
+output: 
+  html_document:
+    code_folding: 'hide'
+    theme: default
+    toc: true
+    toc_depth: 4
+    toc_float: false
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, set.seed(1234)}
+knitr::opts_chunk$set(fig.align='center', message=F, warning=F, cache=T,cache.lazy = F,
+                      class.source="fold-hide")
+```
+
+
+--- 
+
+## Load libraries
+
+```{r lib}
+library(tibble)
+library(tidyr)
+library(readr)
+library(stringr)
+library(ggplot2)
+library(cowplot)
+library(uwot)
+library(Rphenograph)
+library(pheatmap)
+library(cytofkit)
+library(needs)
+library(dplyr)
+library(knitr)
+library(ggridges)
+library(grDevices) # to change the color in pheatmap
+
+prioritize(dplyr)
+
+theme_set(theme_classic())
+
+# if(!require(devtools)){
+#   install.packages("devtools") # If not already installed
+# }
+# devtools::install_github("JinmiaoChenLab/Rphenograph")
+```
+
+--- 
+
+
+## Overview of the tutorial
+
+In this tutorial we will analyse a public data set ([Georg _et al._ 2021](https://www.cell.com/cell/pdf/S0092-8674(21)01562-2.pdf)) of single cell phopho-proteomics measured with Cytometry by Time of Flight (CyTOF). In this study, the authors performed CyTOF of whole blood samples from mild and severe COVID-19 patients during the acute and convalescent phase, and patients with other acute respiratory infections (Flu-like illness), as well as patients chronically infected by human immunodeficiency virus (HIV) or hepatitis B (HBV) and healthy controls. They analysed the T cell space and identified highly activated CD16+ T cells in severe COVID-19, which led the authors to hypothesise about the pathological role of these cytotoxic T cells. This hypothesis was then tested and confirmed with functional analyses, and found suitable mechanisms for their induction. In this tutorial you will learn how to perform such computational analysis either in T cells, B cells, or monocytes!
+
+Due to time constrains, we will analyse 5% of the data set. We will start by manually pre-gating the immune cell type of interest, then we will visually explore the data by reducing the dimensionality and plotting a UMAP. After this, we will cluster the data to find discrete communities of cells, using two different algorithms for comparison. Then we will annotate/give names to these clusters by looking at the average protein expression in each community/cluster. Finally, we will calculate the abundance of each cluster per donor and identify COVID-19 or severe-specific clusters. 
+
+![](diagram.001.png)
+
+--- 
+
+
+## Read the data
+
+We start reading the data table "data_norm_sub.csv" with the function _read.csv()_. The data was already pre-processed (filter-out dead cells, doublets, debris, and batch-corrected).
+
+```{r read, results="hide"}
+data_norm_sub <- read.csv("~/Documents/INsTRuCT_workshop/data_norm_sub5.csv")
+```
+
+What are the columns? What are the rows?
+
+```{r colnamesdata}
+colnames(data_norm_sub)
+```
+
+Create a vector with the name of each measured protein (what we call "the CyTOF panel").
+
+```{r panelandcolors, results="hide"}
+panel <- colnames(data_norm_sub)[15:54]
+
+color_severity <- c(
+  "healthy" = "#0449FF",
+  "FLI" =  "#807F7F",
+  "HIV" = "#40007F",
+  "HBV" =  "magenta",
+  "mild/moderate" = "#FFB651",
+  "severe/critical" = "#F82000")
+
+```
+
+Let's look at how the values of markers are distributed:
+
+```{r panel_linear, fig.height=10, fig.width=10}
+data_norm_sub %>% 
+    sample_frac(0.2) %>% 
+    pivot_longer(names_to = "marker",values_to = "value",panel) %>%
+    ggplot(aes(value)) +
+    geom_density() + facet_wrap(~marker, scale = "free") + 
+  theme_classic()
+```
+
+We notice that these are skewed distributions: Many small values, some very large values. Therefore, it makes more sense to look at these on a logarithmic scale:
+
+
+```{r panel_log, fig.height=10, fig.width=10}
+data_norm_sub %>% 
+    sample_frac(0.2) %>% 
+    pivot_longer(names_to = "marker",values_to = "value",panel) %>%
+    mutate(log_value = log(value+1)) %>% 
+    ggplot(aes(log_value)) +
+    geom_density() + facet_wrap(~marker, scale = "free")+ 
+    theme_classic()
+```
+
+In the CyTOF community, people commonly use the hypebolic arcsine (arcsinh) transformation: 
+$$
+\rm arsinh (x) = \ln(x + \sqrt{x^2+1})
+$$
+
+
+--- 
+
+
+
+## Pre-gating of monocytes
+
+Using _ggplot()_ and _geom_point()_, generate a scatter plot to decide the gates.  
+We visualize just 10% of the data.
+
+### CD45+CD3-
+
+Exclude T cells
+
+```{r gateMono1, fig.height=5, fig.width=5}
+data_norm_sub %>%
+ filter(CD3>0, CD45>0) %>%
+ sample_frac(0.1) %>%
+ mutate_at(vars(panel),asinh) %>%
+ filter(CD45>0, CD3>0) %>%
+ ggplot(aes(x=CD45, y=CD3)) +
+ geom_point(size = 0.01, alpha = 0.1) +
+ geom_density_2d() +
+ geom_rect(mapping=aes(xmin=1, xmax=6.5, ymin=0, ymax=3.8), color="black", alpha=0) + 
+ theme_classic()
+
+```
+
+### CD45+CD3-CD19-CD56-
+
+Exclude B cells and NK cells
+
+```{r gateMono2, fig.height=5, fig.width=5}
+data_norm_sub %>%
+  mutate_at(vars(panel),asinh) %>%
+ filter(CD45>1,
+               CD45<6.5,
+               CD3<3.8,
+               CD19>0,
+               CD56>0) %>%
+ sample_frac(0.5) %>%
+ ggplot(aes(x=CD19, y=CD56)) +
+ geom_point(size = 0.01, alpha = 0.1) +
+ geom_density_2d() +
+ geom_rect(mapping=aes(xmin=0, xmax=3.8, ymin=0, ymax=3.5), color="black", alpha=0) + 
+ theme_classic()
+
+```
+
+### Exclude CD14-HLA.DR-
+
+We exclude neutrophils, and end up with monocytes and dendritic cells
+
+```{r gateMono3, fig.height=5, fig.width=5}
+
+data_norm_sub %>%
+  mutate_at(vars(panel),asinh) %>%
+ filter(CD45>1,
+               CD45<6.5,
+               CD3<3.8,
+               CD19<3.8,
+               CD56<3.5,
+               HLADR>0,
+               CD14>0) %>%
+ sample_frac(0.5) %>%
+ ggplot(aes(x=HLADR, y=CD14)) +
+ geom_point(size = 0.01, alpha = 0.1) +
+ geom_density_2d() +
+ geom_rect(mapping=aes(xmin=0, xmax=7, ymin=5.2, ymax=9), color="black", alpha=0) +
+ geom_rect(mapping=aes(xmin=3, xmax=7, ymin=0, ymax=5.2), color="black", alpha=0) + 
+ theme_classic()
+```
+
+
+
+<!-- #### Percentage of monocytes -->
+
+<!-- * Add a column to the data table where each cell gets the classification Monocyte = {TRUE, FALSE} according to your gating strategy. -->
+<!-- * Calculate the percentage of monocytes in each sample -->
+<!-- * Visualize the percentage of monocytes grouped by severity group (use the classification "sev_merge"), using eg.: geom_boxplot, and facet by disease phase. -->
+
+
+
+### Percentage of monocytes
+
+We first add a column to the data table where each cell gets the classification Monocyte = {TRUE, FALSE} according to your gating strategy. Then let's see if the percentage of Monocytes make sense and how does it look per disease group (variable _sev_merge_). 
+
+```{r columnMono}
+data_norm_sub <- data_norm_sub %>% mutate(Monocyte = ifelse(CD45>sinh(1) &
+               CD45<sinh(6.5) &
+               CD3<sinh(3.8) &
+               CD19<sinh(3.8) &
+               CD56<sinh(3.5) , TRUE, FALSE))
+
+data_norm_sub <- data_norm_sub %>%
+    mutate(Monocyte = ifelse(HLADR < sinh(3) &
+                             CD14 < sinh(5.2) , FALSE, Monocyte))
+```
+
+```{r percMono}
+data_norm_sub <- data_norm_sub %>% mutate(sev_merge = factor(sev_merge,levels = c("healthy","FLI","HIV","HBV","mild/moderate","severe/critical")))
+
+data_norm_sub %>% 
+ count(id,Monocyte,sev_merge,Disease.phase) %>% 
+ group_by(id) %>% 
+ mutate(perc = n/sum(n)*100) %>% 
+ ungroup() %>% 
+ filter(Monocyte) %>% 
+ ggplot(aes(y = perc, x = sev_merge, fill = sev_merge)) + 
+ geom_boxplot(position=position_dodge(1), alpha = 0.7)+
+ geom_dotplot(binaxis='y', stackdir='center',
+              position=position_dodge(1), alpha = 0.7)+
+ facet_grid(~ Disease.phase, space = "free_x", scale = "free_x") + 
+ scale_fill_manual(values = color_severity)+
+ ylab("Percentage of monocytes (%)") + 
+ xlab("")+
+ theme_classic()+ 
+ theme(axis.text.x=element_blank(),
+       axis.ticks.x=element_blank())
+```
+
+
+--- 
+
+
+
+## UMAP {.tabset}
+
+We now compute UMAP for monocytes across all samples (acute and convalescent), and using all markers, except CD45, CD3, CD19, IgM, CD21, and IgD. 
+
+We define a vector "sel_markers_mono" with the selected markers to be used for the calculation of the UMAP.
+
+
+
+
+```{r sel_markers_mono}
+sel_markers_mono <- panel[!panel %in% c("CD45","CD3", "CD19","CD15","TCRgd" ,"CD21", "IgM","IgD")]
+
+```
+
+Before calculating the UMAP, is important we transform our data (_asinh_) and apply z-score normalization (function _scale_). Why?
+
+```{r computeUMAP_m}
+
+data_mono <- data_norm_sub %>%
+  filter(Monocyte)
+
+UMAP_mono <- data_mono %>%
+  mutate_at(vars(sel_markers_mono), asinh) %>%
+  mutate_at(vars(sel_markers_mono), scale) %>%
+  select(sel_markers_mono) %>%
+  uwot::umap(n_neighbors = 30,spread = 1, min_dist = 0.5,metric = "euclidean", verbose = TRUE, fast_sgd = TRUE)
+
+data_mono$UMAP1 <- NA
+data_mono$UMAP2 <- NA
+
+data_mono$UMAP1 <- UMAP_mono[,1]
+data_mono$UMAP2 <- UMAP_mono[,2]
+
+```
+
+
+We now plot each UMAP, coloured by severity, disease phase, and intensity of a selected marker. Recommendation: subsample cells for visualization, using _sample_n_, or _sample_frac_. 
+
+### Severity
+
+Do you observe specific areas where CV19 samples accumulate? What does this mean?
+
+```{r UMAP_severity, fig.height=5, fig.width=5}
+
+
+data_mono %>% 
+  sample_n(30000) %>% 
+  ggplot(aes(x = UMAP1, y=UMAP2, color = sev_merge)) +
+  geom_point(alpha = 0.5,size = 0.5)+
+  guides(colour = guide_legend(ncol = 1,override.aes = list(size=3, alpha = 1))) +
+  scale_color_manual(values = color_severity, name = "")+
+  theme_classic() + 
+  ggtitle("Monocytes") +
+  theme(legend.position = "none",plot.title = element_text(hjust = 0.5)) 
+
+
+```
+
+### Disease phase
+
+Do you observe specific areas where convalescent samples accumulate? What does this mean?
+
+```{r UMAP_diseasephase_m, fig.height=5, fig.width=5}
+
+data_mono %>%
+  sample_n(30000) %>%
+  ggplot(aes(x = UMAP1, y=UMAP2, color = Disease.phase)) +
+  geom_point(alpha = 0.5,size = 0.5)+
+  guides(colour = guide_legend(ncol = 1,override.aes = list(size=3, alpha = 1))) +
+  scale_color_manual(values = c("acute" = "red","convalescent"="black"), name = "")+
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+```
+
+### Marker intensity
+
+* Plot the UMAPs coloured by the expression of your favorite marker. Remember to do the corresponding transformations on the intensity values.
+
+```{r UMAP_markers_m, fig.height=7, fig.width=21}
+
+
+p1 <- data_mono %>%
+  mutate_at(vars(sel_markers_mono), asinh) %>%
+  mutate_at(vars(sel_markers_mono), scale) %>%
+  sample_n(30000) %>%
+  ggplot(aes(x = UMAP1, y=UMAP2, color = HLADR)) +
+  geom_point(alpha = 0.5,size = 0.5)+
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_color_gradient2(low = "blue", mid = "grey", high = "red", midpoint = 0)
+
+
+p2 <- data_mono %>%
+  mutate_at(vars(sel_markers_mono), asinh) %>%
+  mutate_at(vars(sel_markers_mono), scale) %>%
+  sample_n(30000) %>%
+  ggplot(aes(x = UMAP1, y=UMAP2, color = CD16)) +
+  geom_point(alpha = 0.5,size = 0.5)+
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_color_gradient2(low = "blue", mid = "grey", high = "red", midpoint = 0)
+
+
+p3 <- data_mono %>%
+  mutate_at(vars(sel_markers_mono), asinh) %>%
+  mutate_at(vars(sel_markers_mono), scale) %>%
+  sample_n(30000) %>%
+  ggplot(aes(x = UMAP1, y=UMAP2, color = CD14)) +
+  geom_point(alpha = 0.5,size = 0.5)+
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_color_gradient2(low = "blue", mid = "grey", high = "red", midpoint = 0)
+
+plot_grid(p1,p2,p3,nrow = 1)
+
+```
+
+
+
+--- 
+
+
+
+## Unsupervised clustering  {.tabset}
+
+We now perform unsupervised clustering analysis on samples from control, FLI, HIV, HBV, and acute COVID-19 using  the selected markers. As done for the UMAP calculation, before clustering is important we transform and z-score normalize our data. Let's look at the distribution of the markers used for clustering:
+
+```{r distMarkersClust, fig.height=10, fig.width=10}
+data_mono %>% 
+ mutate_at(vars(sel_markers_mono), asinh) %>% 
+ mutate_at(vars(sel_markers_mono), scale) %>% 
+ filter(Disease.phase == "acute") %>%
+ select(sel_markers_mono) %>% 
+ pivot_longer(names_to = "marker", values_to = "value", everything()) %>% 
+ ggplot(aes(value)) + 
+ geom_density() + facet_wrap(~marker, scale = "free") + theme_classic()
+```
+
+**What's the main difference between RPhenograph and FlowSOM?**
+
+### Run {.tabset}
+
+#### RPhenograph 
+
+**IMPORTANT!** In RPhenograph we define the number of nearest neighbours. 
+
+```{r runRphenograph, results="hide"}
+start_time <- Sys.time()
+
+
+clust_mono_rpheno <- data_mono %>% 
+ mutate_at(vars(sel_markers_mono), asinh) %>% 
+ mutate_at(vars(sel_markers_mono), scale) %>% 
+ filter(Disease.phase == "acute") %>%
+ select(sel_markers_mono) %>% 
+ Rphenograph(k = 30)
+
+end_time <- Sys.time()
+
+```
+
+```{r time_elapsed_Rpheno}
+time_elapsed <- round(as.numeric(gsub('Time difference of ', '', difftime(end_time, start_time, units = "mins"))), 2)
+print(paste('\n', time_elapsed, 'minutes passed'))
+```
+
+After running the clustering algorithm, we add a column "Rpheno" in the data table with the cluster label for each cell:
+
+```{r add_clust_info}
+clust_ids <- data_mono %>% 
+   filter(Disease.phase == "acute") %>%
+   pull(cellid)
+
+clust_mono_rpheno <- tibble(cellid = clust_ids, Rpheno = as.character(membership(clust_mono_rpheno)))
+
+data_mono <- data_mono %>% left_join(clust_mono_rpheno)
+data_mono <- data_mono %>% mutate(Rpheno = factor(Rpheno, levels = str_sort(unique(Rpheno), numeric = TRUE)))
+
+```
+
+#### FlowSOM
+
+**IMPORTANT!** In FlowSOM we define the number of clusters.
+
+```{r runflowsom, results="hide"}
+start_time <- Sys.time()
+
+clust_mono_flowsom <- data_mono %>% 
+ mutate_at(vars(sel_markers_mono), asinh) %>% 
+ mutate_at(vars(sel_markers_mono), scale) %>% 
+ filter(Disease.phase == "acute") %>%
+ select(sel_markers_mono) %>% 
+ cytof_cluster(xdata=. , method = 'FlowSOM', FlowSOM_k = 10)
+
+end_time <- Sys.time()
+```
+
+```{r time_elapsed_fs}
+time_elapsed <- round(as.numeric(gsub('Time difference of ', '', difftime(end_time, start_time, units = "mins"))), 2)
+print(paste('\n', time_elapsed, 'minutes passed'))
+```
+
+After running the clustering algorithm, we add a column "flowsom" in the data table with the cluster label for each cell:
+
+```{r add_clust_info_fs}
+clust_ids <- data_mono %>%
+  filter(Disease.phase == "acute") %>%
+  pull(cellid)
+
+clust_mono_flowsom <- tibble(cellid = clust_ids, flowsom = as.character(clust_mono_flowsom))
+data_mono <- data_mono %>% left_join(clust_mono_flowsom)
+data_mono <- data_mono %>% mutate(flowsom = factor(flowsom, levels = str_sort(unique(flowsom), numeric = TRUE)))
+```
+
+### Cluster size {.tabset}
+
+We now visualize the number of cells in each cluster:
+
+#### Rphenograph
+
+```{r clustSize, fig.height=5, fig.width=10}
+ data_mono %>% filter(Disease.phase == "acute") %>%
+ count(Rpheno) %>% 
+ ggplot(aes(x = Rpheno, y = n, label = n))+
+ geom_col(position = "dodge") + 
+ theme_classic()+ 
+ geom_label() 
+```
+
+#### FlowSOM
+
+```{r clustSize_fs, fig.height=5, fig.width=10}
+ data_mono %>% filter(Disease.phase == "acute") %>%
+ count(flowsom) %>% 
+ ggplot(aes(x = flowsom, y = n, label = n))+
+ geom_col(position = "dodge") + 
+  theme_classic()+ 
+  geom_label() 
+```
+
+### UMAP clusters {.tabset}
+
+And then plot the UMAP, this time coloured by cluster:
+
+#### RPhenograph
+
+```{r UMAP_clusters_Rpheno, fig.height=5, fig.width=7}
+data_mono %>% 
+  filter(data_mono$Disease.phase == "acute") %>% 
+  ggplot(aes(x = UMAP1, y=UMAP2, color = Rpheno)) +
+  geom_point(alpha = 0.5,size = 1)+
+  guides(colour = guide_legend(ncol = 1,override.aes = list(size=3, alpha = 1))) +
+  theme_classic() + 
+  ggtitle("Monocytes") +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+
+```
+
+#### FlowSOM
+
+```{r UMAP_clusters_fs, fig.height=5, fig.width=7}
+data_mono %>% 
+  filter(data_mono$Disease.phase == "acute") %>% 
+  ggplot(aes(x = UMAP1, y=UMAP2, color = flowsom)) +
+  geom_point(alpha = 0.5,size = 1)+
+  guides(colour = guide_legend(ncol = 1,override.aes = list(size=3, alpha = 1))) +
+  theme_classic() + 
+  ggtitle("Monocytes") +
+  theme(plot.title = element_text(hjust = 0.5)) 
+```
+
+### Marker distribution {.tabset}
+
+Let's look at the marker distribution per cluster: 
+
+#### RPhenograph
+
+```{r distMarkersClust_rpheno, fig.height=15, fig.width=10}
+data_mono %>% 
+ mutate_at(vars(sel_markers_mono), asinh) %>% 
+ mutate_at(vars(sel_markers_mono), scale) %>% 
+ filter(Disease.phase == "acute") %>%
+ select(sel_markers_mono, Rpheno) %>% 
+ pivot_longer(names_to = "marker", values_to = "value", sel_markers_mono) %>% 
+ ggplot(aes(x= value, fill = Rpheno, y = Rpheno)) + 
+ geom_density_ridges() + facet_wrap(~marker, scale = "free") + 
+ theme_classic()
+```
+
+#### FlowSOM
+
+```{r distMarkersClust_flowsom, fig.height=15, fig.width=10}
+data_mono %>% 
+ mutate_at(vars(sel_markers_mono), asinh) %>% 
+ mutate_at(vars(sel_markers_mono), scale) %>% 
+ filter(Disease.phase == "acute") %>%
+ select(sel_markers_mono, flowsom) %>% 
+ pivot_longer(names_to = "marker", values_to = "value", sel_markers_mono) %>% 
+ ggplot(aes(x= value, fill = flowsom, y = flowsom)) + 
+ geom_density_ridges() + facet_wrap(~marker, scale = "free") + 
+ theme_classic()
+```
+
+
+
+--- 
+
+## Cluster annotation {.tabset}
+
+We now want to actually understand what are these clusters we found. For this, we can visualize the average expression of each marker in each cluster with a heatmap.** Remember to do the corresponding transformation of the intensity values.** 
+
+### Heatmap (ggplot) {.tabset}
+
+#### Rphenograph
+
+```{r heatmapClusters, fig.height=5, fig.width=5}
+
+data_mono %>%
+ mutate_at(vars(sel_markers_mono), asinh) %>%
+ mutate_at(vars(sel_markers_mono), scale) %>%
+ filter(Disease.phase == "acute") %>%
+ select(sel_markers_mono,Rpheno) %>%
+ group_by(Rpheno) %>%
+ summarise_at(vars(sel_markers_mono), funs(mean(., na.rm=TRUE))) %>%
+ pivot_longer(names_to = "markers", values_to = "avg_zscore", - Rpheno) %>%
+ mutate(markers = factor(markers,levels = rev(sel_markers_mono))) %>%
+ ggplot(aes(x = Rpheno, y = markers, fill = avg_zscore)) +
+ geom_tile() +
+ scale_fill_gradient2(low = "blue", mid = "white", high = "red", limits = c(-4.5,4.5))
+
+```
+
+#### FlowSOM
+
+```{r heatmapClusters_fs, fig.height=5, fig.width=5}
+data_mono %>% 
+ mutate_at(vars(sel_markers_mono), asinh) %>% 
+ mutate_at(vars(sel_markers_mono), scale) %>% 
+ filter(Disease.phase == "acute") %>%
+ select(sel_markers_mono,flowsom) %>%
+ group_by(flowsom) %>%
+ summarise_at(vars(sel_markers_mono), funs(mean(., na.rm=TRUE))) %>% 
+ pivot_longer(names_to = "markers", values_to = "avg_zscore", - flowsom) %>% 
+ mutate(markers = factor(markers,levels = rev(sel_markers_mono))) %>% 
+ ggplot(aes(x = flowsom, y = markers, fill = avg_zscore)) + 
+ geom_tile() + 
+ scale_fill_gradient2(low = "blue", mid = "white", high = "red", limits = c(-4.5,4.5)) 
+```
+
+### Heatmap (pheatmap) {.tabset}
+
+With the library "pheatmap" we can additionally group the clusters (dendogram) and group the markers by category (annotation).
+
+#### RPhenograph
+
+```{r heatmapClusters_pheatmap, fig.height=5, fig.width=5}
+
+data_heatmap <- data_mono %>%
+ mutate_at(vars(sel_markers_mono), asinh) %>%
+ mutate_at(vars(sel_markers_mono), scale) %>%
+ filter(Disease.phase == "acute") %>%
+ select(sel_markers_mono,Rpheno) %>%
+ group_by(Rpheno) %>%
+ summarise_at(vars(sel_markers_mono), funs(mean(., na.rm=TRUE))) %>%
+ column_to_rownames("Rpheno")
+
+annotation_rows <- data.frame( marker_category = c("Contamination",
+                                                  rep("Differentiation",2), 
+                               rep("Co-stimulation",4), 
+                               rep("Co-inhibition",4),
+                               rep("Activation",7),
+                               rep("Chemokine receptor",4),
+                               rep("Others",10)))
+
+rownames(annotation_rows) <- sel_markers_mono
+
+data_heatmap %>% t() %>%
+  pheatmap(cluster_rows = F, 
+           cluster_cols = T, 
+           annotation_row = annotation_rows, 
+           annotation_names_row = F, 
+           gaps_row = c(1,3, 7, 11, 18, 22), 
+           breaks = seq(-3.5, 3.5, length.out = 100),
+           color = colorRampPalette(c("blue", "white", "red"))(100)
+)
+
+
+```
+
+#### FlowSOM
+
+```{r heatmapClusters_pheatmap_fs, fig.height=5, fig.width=5}
+
+data_heatmap <- data_mono %>%
+ mutate_at(vars(sel_markers_mono), asinh) %>%
+ mutate_at(vars(sel_markers_mono), scale) %>%
+ filter(Disease.phase == "acute") %>%
+ select(sel_markers_mono,flowsom) %>%
+ group_by(flowsom) %>%
+ summarise_at(vars(sel_markers_mono), funs(mean(., na.rm=TRUE))) %>%
+ column_to_rownames("flowsom")
+
+annotation_rows <- data.frame( marker_category = c("Contamination",
+                                                  rep("Differentiation",2), 
+                               rep("Co-stimulation",4), 
+                               rep("Co-inhibition",4),
+                               rep("Activation",7),
+                               rep("Chemokine receptor",4),
+                               rep("Others",10)))
+
+rownames(annotation_rows) <- sel_markers_mono
+
+data_heatmap %>% t() %>%
+  pheatmap(cluster_rows = F, 
+           cluster_cols = T, 
+           annotation_row = annotation_rows, 
+           annotation_names_row = F, 
+           gaps_row = c(1,3, 7, 11, 18, 22), 
+           breaks = seq(-3.5, 3.5, length.out = 100),
+           color = colorRampPalette(c("blue", "white", "red"))(100)
+)
+
+
+
+```
+
+
+### Quick comparison
+
+How much percentage of cells from RPhenograph cluster X where classified in FlowSOM cluster Y?
+
+```{r}
+
+data_heatmap <- data_mono %>%  
+    filter(Disease.phase == "acute") %>%
+    count(Rpheno, flowsom) %>% 
+    tidyr::complete(Rpheno,flowsom,fill = list(n=0)) %>% 
+    group_by(Rpheno) %>% 
+    mutate(total_Rpheno = sum(n)) %>% 
+    ungroup() %>% mutate(perc = n/total_Rpheno*100) %>% select(Rpheno, flowsom, perc) %>% 
+    pivot_wider(names_from = Rpheno, values_from = "perc") %>% 
+    column_to_rownames("flowsom") 
+
+
+pheatmap(data_heatmap, cluster_cols = T,cluster_rows = T,
+         labels_row = paste0(rownames(data_heatmap), "_flowsom"),
+         labels_col = paste0(rownames(data_heatmap), "_rpheno"))
+```
+
+--- 
+
+
+## Cluster abundance {.tabset}
+
+Finally, we can calculate the abundance of each cluster in each sample and check if there are COVID-specific or severity-specific groups of cells.  
+
+**ACHTUNG!** In this data set, donors where sampled multiple times during the disease course. We establish an arbitrary rule of choosing the first sample per donor (usually during the first week post-symptom onset) if multiple samples are available.
+
+
+
+```{r defineIDs}
+selected_ids <- data_mono %>% 
+ filter(Disease.phase == "acute") %>% 
+ count(Individuals,id,Group,sev_merge,Days.post.symptom.onset) %>% 
+ select(-n) %>% 
+ group_by(Individuals) %>%
+ mutate(n_samples = 1:n()) %>% 
+ mutate(select_id = ifelse(n_samples == 1, TRUE,
+                                  ifelse(min(as.numeric(Days.post.symptom.onset)) == as.numeric(Days.post.symptom.onset), 
+                                         TRUE,
+                                         FALSE))) %>%
+ filter(select_id) %>%
+ pull(id)
+```
+
+We can visualize the abundance of each cluster per donor as boxplots per severity group. 
+
+### RPhenograph
+
+
+```{r boxplot_clust_abundance, fig.height=10, fig.width=10}
+
+ data_mono %>% 
+ filter(id %in% selected_ids) %>% 
+ count(id,sev_merge,Rpheno) %>% 
+ group_by(id) %>% 
+ mutate(perc = n/sum(n)*100) %>% 
+ ungroup() %>% 
+  # When using the function count(), if a cluster is absent in a donor, it will not be counted as zero. 
+  # So we complete the count table by filling the missing clusters with a 0.
+ tidyr::complete(id,Rpheno,fill = list(n=0,perc = 0)) %>% 
+ group_by(id) %>% 
+ fill(sev_merge, .direction = "downup") %>% 
+ ungroup() %>% 
+ mutate(perc = ifelse(is.na(perc),0,perc)) %>% 
+ ggplot(aes(x = sev_merge, y = perc, fill = sev_merge)) + 
+ geom_boxplot() + 
+ geom_jitter()+
+ facet_wrap(~Rpheno, scale = "free") + 
+ scale_fill_manual(values = color_severity) + 
+ theme(axis.text.x = element_blank()) + 
+ ggtitle("RPhenograph cluster abundance")
+
+```
+
+### FlowSOM
+
+```{r boxplot_clust_flow_abundance, fig.height=10, fig.width=10}
+ data_mono %>% 
+ filter(id %in% selected_ids) %>% 
+ count(id,sev_merge,flowsom) %>% 
+ group_by(id) %>% 
+ mutate(perc = n/sum(n)*100) %>% 
+ ungroup() %>% 
+  # When using the function count(), if a cluster is absent in a donor, it will not be counted as zero. 
+  # So we complete the count table by filling the missing clusters with a 0.
+ tidyr::complete(id,flowsom,fill = list(n=0,perc = 0)) %>%
+ group_by(id) %>%
+ fill(sev_merge, .direction = "downup") %>%
+ ungroup() %>%
+ mutate(perc = ifelse(is.na(perc),0,perc)) %>%
+ ggplot(aes(x = sev_merge, y = perc, fill = sev_merge)) + 
+ geom_boxplot() + 
+ geom_jitter()+
+ facet_wrap(~flowsom, scale = "free") + 
+ scale_fill_manual(values = color_severity) + 
+ theme(axis.text.x = element_blank()) +
+  ggtitle('FlowSom cluster abundance')
+```
+
+
+--- 
+
+
+
+## Now is your turn
+
+Make a presentation/talk (up to 20 minutes long, 10 minutes discussion) about the analysis pipeline that you familiarized yourself with. Mention what cell type you looked at, and present the results with your interpretation given the context of the experimental design.  
+
+Doesn’t have to be a proper PowerPoint, you can just open the R Markdown and go through it.  
+
+Following questions should be touched upon:  
+
+* Pre-gating: 
+  + What is the purpose of doing it? 
+  + List pros and cons
+
+* UMAP: 
+  + What information does it carry? 
+  + In what ways can we use it in exploratory analysis?
+  
+*	Unsupervised Clustering: 
+  + What are the differences between algorithms?
+  + Which one gave better results?
+  + What are the situations where you would prefer using the other one?
+  
+* Cluster annotation
+  + Which names would you give to the clusters we found?
+
+* Interpretation of results in the context of acute COVID-19 using heatmaps and cluster abundances.
+* Feedback: was it helpful? :)
+
+
+
+
+
