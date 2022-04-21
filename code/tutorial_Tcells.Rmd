@@ -138,11 +138,19 @@ color_severity <- c(
 
 Let's look at how the values of markers are distributed:
 
+In the CyTOF community, people commonly use the hyperbolic arcsine (asinh) transformation: 
+$$
+\rm asinh(x) = \ln(x + \sqrt{x^2+1})
+$$
+
+
 ```{r panel_linear, fig.height=10, fig.width=10}
 data_norm_sub %>% 
     # take only 20% of the data such that the plots are generated faster
     sample_frac(0.2) %>%
-    # ?Todo what is happening here? 
+    # Pivot: All columns defined by "panel" will go into two columns. 
+    # The values go into the new column "value"
+    # The names of the columns go into the new column "marker" 
     pivot_longer(names_to = "marker", values_to = "value", panel) %>%
     # start plotting, x-axis is the value
     ggplot(aes(x=value)) +
@@ -167,9 +175,9 @@ data_norm_sub %>%
     # mutate() generates a new column "log_value" and takes the logaritm (log())
     # of the column "value" but adds 1 before. 
     # We add 1 because some "value"-s can be 0 and the logarithm is not defined here
-    mutate(log_value = log(value+1)) %>% 
+    mutate(asinh_value = asinh(value)) %>% 
     # Start plotting, define "log_value" as x-axis
-    ggplot(aes(x=log_value)) +
+    ggplot(aes(x=asinh_value)) +
     # Density plots, how are the values on the x-axis distributed
     geom_density() + 
     # Split the plots according to the "marker" column, different axis
@@ -177,11 +185,6 @@ data_norm_sub %>%
     # How the plot looks 
     theme_classic()
 ```
-
-In the CyTOF community, people commonly use the hyperbolic arcsine (asinh) transformation: 
-$$
-\rm asinh (x) = \ln(x + \sqrt{x^2+1})
-$$
 
 
 
@@ -198,16 +201,16 @@ We visualize just 10% of the data.
 
 ```{r gateTcells1, fig.height=5, fig.width=5} 
 data_norm_sub %>% 
+ # ???Why are we using only positive values here?
+ # filter retains only rows where the rules inside apply, 
+ # so each row where CD45>0 and CD3>0 stays, all other rows are removed
+ filter(CD45>0, CD3>0) %>% 
  # Use only 10% of the data 
  sample_frac(0.1) %>% 
  # Before, we used mutate() to generate a single new column. 
  # mutate_at() changes all values (here vars(panel)) and applies the following 
  # function (here asinh()) 
  mutate_at(vars(panel), asinh) %>% 
- # ???Why are we using only positive values here?
- # filter retains only rows where the rules inside apply, 
- # so each row where CD45>0 and CD3>0 stays, all other rows are removed
- filter(CD45>0, CD3>0) %>% 
  # Make a plot where the x-axis are the CD45 values, and the y-axis are the CD3 values
  ggplot(aes(x=CD45, y=CD3)) +
  # Each value will be a _point_ with a certain size
@@ -217,7 +220,7 @@ data_norm_sub %>%
  geom_density_2d()+
  # Plot a rectangle with the given coordinates
  # We found the coordinates by hand
- # ??? Why alpha=0
+ # Alpha=0 because otherwise you would have a filled rectangle 
  geom_rect(mapping=aes(xmin=1, xmax=8, ymin=4.3, ymax=8), color="black", alpha=0) + 
   theme_classic()
 
