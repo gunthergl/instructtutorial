@@ -213,7 +213,7 @@ data_norm_sub_trans %>%
     # Make a plot where the x-axis are the CD45 values, and the y-axis are the CD3 values
     ggplot(aes(x = CD45, y = CD3)) +
     # Each value will be a _point_ with a certain size
-    # and a ???Farbdeckung? Wort suchen.
+    # and a certain transparency (alpha)
     geom_point(size = 0.01, alpha = 0.1) +
     # Additionally to the points, plot the density of the points in 2 dimensions
     geom_density_2d() +
@@ -350,24 +350,26 @@ We then create a new column "Tcellcompartment" and classify the cell according t
 ```{r gatesTcells}
 gates <- tibble(
     # Each "run" has different gates we found manually.
-    Run = as.numeric(str_sort(unique(data_norm_sub$Run))),
+    Run = as.numeric(str_sort(unique(data_norm_sub_trans$Run))),
     CD8threshold = c(3.9, 4.15, 3.7, 3.7, 4.3, 4.1, 3.8, 4.4, 5.1, 4.85, 4.55, 4.55, 4, 5, 4.2),
     TCRgdthreshold = c(2.85, 2.85, 2.85, 2.85, 2.85, 2.85, 2.85, 2.85, 2.85, 2.85, 2.85, 2.85, 2.85, 2.85, 3.7)
 )
 ```
 
 ```{r applyGates}
-data_Tcell <- data_norm_sub %>% filter(Tcell)
+data_Tcell <- data_norm_sub_trans %>%
+    # filter (keep) all rows where Tcell is TRUE
+    filter(Tcell)
 
 data_Tcell <- data_Tcell %>%
     # Show what happens here using left join
     # Left join takes the "left" argument, here given implicitely with "%>%", so it is data_Tcell
-    # Then the dataframe "gates" is joined with data_Tcell using ???WHICH COLUMN AS JOIN?
+    # Then the dataframe "gates" is joined with data_Tcell using "Run" as "join"-value
     left_join(gates) %>%
     # ?Todo: What is happening?
     mutate(Tcellcompartment = case_when(
-        asinh(TCRgd) <= TCRgdthreshold & asinh(CD8) <= CD8threshold ~ "CD4+",
-        asinh(TCRgd) <= TCRgdthreshold & asinh(CD8) > CD8threshold ~ "CD8+",
+        TCRgd <= TCRgdthreshold & CD8 <= CD8threshold ~ "CD4+",
+        TCRgd <= TCRgdthreshold & CD8 > CD8threshold ~ "CD8+",
         TRUE ~ "TCRgd+"
     ))
 ```
@@ -375,8 +377,6 @@ data_Tcell <- data_Tcell %>%
 
 ```{r visualizeGateTcellcompartment, fig.height=5, fig.width=8,  results = 'asis'}
 data_Tcell %>%
-    # Transform all panel columns with asinh
-    mutate_at(vars(panel), asinh) %>%
     # Plot CD8 (x-axis) and TCRgd (y-axis)
     ggplot(aes(x = CD8, y = TCRgd)) +
     # Use points, color them according to Tcellcompartment with certain size and alpha.
@@ -389,14 +389,20 @@ data_Tcell %>%
 
 ```{r percTcellcompartmentAllSamples, fig.height=5, fig.width=5}
 data_Tcell %>%
-    # Count how many values there are in every Tcellcompartment
+    # Count how many cells there are in every Tcellcompartment
     count(Tcellcompartment) %>%
-    # ?Todo: What is happening with that mutate, also before?
+    #   Tcellcompartment     n
+    # 1             CD4+ 66528
+    # 2             CD8+ 36605
+    # 3           TCRgd+  2354
+    # We define perc as "n" divided by the sum of all "n"s times 100
+    # There is 3 "n"-values (because 3 rows), therefore this is effectively
+    # the percentage of cells in each Tcellcompartment
     mutate(perc = n / sum(n) * 100) %>%
     # Plot the percentage (y-axis) of each Tcellcompartment (x-axis) colored by Tcellcompartment
     # and label it with the percentage, rounded to 2 decimal points
     ggplot(aes(x = Tcellcompartment, y = perc, fill = Tcellcompartment, label = round(perc, 2))) +
-    # ? Todo: What is geom_col doing?
+    # ?Todo: What is happening? ? Todo: What is geom_col doing?
     geom_col(position = "dodge") +
     # We defined WHAT the labels should contain, now we actually plot them
     geom_label() +
@@ -416,46 +422,58 @@ data_Tcell %>%
 
 ## UMAP {.tabset}
 
-We now compute the UMAPs for each T cell compartment across all samples (acute and convalescent). We use all markers, except the parameters we used for gating. We also exclude IgD, IgM, CD21, and CD14.  ??? Why do we exclude the gating-parameters and the other parameters?
+https://pair-code.github.io/understanding-umap/
+
+We now compute the UMAPs for each T cell compartment across all samples (acute and convalescent). We use all markers, except the parameters we used for gating. We also exclude IgD, IgM, CD21, and CD14.  
 
 We define a vector "sel_markers_Tcells" removing all parameters we do not want to include for the calculation of the UMAP.
 
 ```{r sel_markers_Tcells}
 # panel %in% c("text1", "text2", ...)
-#   Returns a vector which is TRUE if its corresponding value in "panel" is in the vector on the right
-#   and FALSE if it is not.
+#   Returns a vector which is TRUE if its corresponding value in "panel"
+#   is in the vector on the right and FALSE if it is not.
 # ! panel %in% c("text1", "text2", ...)
 #   inverts this logical vector, so FALSE if value is contained in the right, TRUE if not.
 # panel[!panel %in% c("CD45","CD3", "CD19","CD15","CD8","TCRgd","IgD","IgM","CD21","CD14")]
 #   selects the TRUE values in "panel" according to the just specified vector.
-sel_markers_Tcells <- panel[!panel %in% c("CD45", "CD3", "CD19", "CD15", "CD8", "TCRgd", "IgD", "IgM", "CD21", "CD14")]
+sel_markers_Tcells <- panel[!panel %in% c(
+    "CD45", "CD3", "CD19", "CD15", "CD8",
+    "TCRgd", "IgD", "IgM", "CD21", "CD14"
+)]
 ```
 
 Before calculating the UMAP, is important we transform our data (`asinh`) and apply z-score standardization (function `scale`). Why?
 
 ```{r computeUMAP}
-transformed_data <- data_Tcell %>%
-    # Apply asinh() on all columns defined by sel_markers_Tcells
-    mutate_at(vars(sel_markers_Tcells), asinh) %>%
+transformed_scaled_data <- data_Tcell %>%
     # Then apply scale() on all columns defined by sel_markers_Tcells
     mutate_at(vars(sel_markers_Tcells), scale) %>%
     # Select only the sel_markers_Tcells columns
     select(sel_markers_Tcells)
 
-UMAP_TCRgd <- transformed_data %>%
+UMAP_TCRgd <- transformed_scaled_data %>%
     # Filter all cells which are TCRgd+
     filter(Tcellcompartment == "TCRgd+") %>%
     # Calculate UMAP with defined hyperparameters
     uwot::umap(
+        # The size of local neighborhood
         n_neighbors = 30,
+        # The effective scale of embedded points. In combination with min_dist,
+        # this determines how clustered/clumped the embedded points are.
         spread = 1,
+        # The effective minimum distance between embedded points
         min_dist = 0.5,
+        # Type of distance metric to use to find nearest neighbors
         metric = "euclidean",
+        # If TRUE, log details to the console.
         verbose = TRUE,
+        # Setting fast_sgd to TRUE will speed up the stochastic optimization phase, but give a
+        # potentially less accurate embedding, and which will not be exactly reproducible
+        # even with a fixed seed.
         fast_sgd = TRUE
     )
 
-UMAP_CD4 <- transformed_data %>%
+UMAP_CD4 <- transformed_scaled_data %>%
     # Filter all cells which are CD4+
     filter(Tcellcompartment == "CD4+") %>%
     # Calculate UMAP with defined hyperparameters
@@ -468,7 +486,7 @@ UMAP_CD4 <- transformed_data %>%
         fast_sgd = TRUE
     )
 
-UMAP_CD8 <- transformed_data %>%
+UMAP_CD8 <- transformed_scaled_data %>%
     # Filter all cells which are CD8+
     filter(Tcellcompartment == "CD8+") %>%
     # Calculate UMAP with defined hyperparameters
@@ -512,11 +530,11 @@ p1 <- data_Tcell %>%
     filter(Tcellcompartment == "CD4+") %>%
     # Sample 30000 rows (=cells)
     sample_n(30000) %>%
-    # Plot the two just calculated UMAPs, color according to severity
+    # Plot the two just calculated UMAPs, color according to sev_merge(severity)
     ggplot(aes(x = UMAP1, y = UMAP2, color = sev_merge)) +
     # Plot points
     geom_point(alpha = 0.5, size = 2) +
-    # ? Todo: What is happening?
+    # ?Todo: What is happening?
     guides(colour = guide_legend(ncol = 1, override.aes = list(size = 3, alpha = 1))) +
     # Use our previously defined colors
     scale_color_manual(values = color_severity, name = "") +
@@ -529,28 +547,51 @@ p1 <- data_Tcell %>%
     # plot.title = element_text(hjust...) adjusts the horizontal adjustment (placing) of the title.
     theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
 
-# ?Todo
 p2 <- data_Tcell %>%
+    # Select CD8+ Tcell compartment
     filter(Tcellcompartment == "CD8+") %>%
+    # Sample 30000 rows (=cells)
     sample_n(30000) %>%
+    # Plot the two just calculated UMAPs, color according to sev_merge(severity)
     ggplot(aes(x = UMAP1, y = UMAP2, color = sev_merge)) +
+    # Plot points
     geom_point(alpha = 0.5, size = 2) +
+    # ?Todo: What is happening?
     guides(colour = guide_legend(ncol = 1, override.aes = list(size = 3, alpha = 1))) +
+    # Use our previously defined colors
     scale_color_manual(values = color_severity, name = "") +
     theme_classic() +
+    # Set a proper title!
+    # Always set proper titles. The idea is that you should be able to send a plot to you boss and
+    # he should understand what happens by just looking at the plot.
     ggtitle("CD8+ T cells") +
+    # legend.position="none" removes the legend
+    # plot.title = element_text(hjust...) adjusts the horizontal adjustment (placing) of the title.
     theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
 
-# ?Todo
 p3 <- data_Tcell %>%
+    # Select TCRgd+ Tcell compartment
     filter(Tcellcompartment == "TCRgd+") %>%
+    # Plot the two just calculated UMAPs, color according to sev_merge(severity)
     ggplot(aes(x = UMAP1, y = UMAP2, color = sev_merge)) +
+    # Plot points
     geom_point(alpha = 0.5, size = 3) +
+    # ?Todo: What is happening?
     guides(colour = guide_legend(ncol = 1, override.aes = list(size = 3, alpha = 1))) +
+    # Use our previously defined colors
     scale_color_manual(values = color_severity, name = "") +
     theme_classic() +
+    # Set a proper title!
+    # Always set proper titles. The idea is that you should be able to send a plot to you boss and
+    # he should understand what happens by just looking at the plot.
     ggtitle("TCRgd+ T cells") +
-    theme(legend.position = "right", legend.direction = "vertical", plot.title = element_text(hjust = 0.5))
+    # The last plot SHOULD have a legend.
+    # Note that technically this legend is only legit for p3 not for p2 or p1 because the color
+    # limits might be different
+    theme(
+        legend.position = "right", legend.direction = "vertical",
+        plot.title = element_text(hjust = 0.5)
+    )
 
 # Until now we did CALCULATE the plots, but not actually plot them, that is the idea of ggplot.
 # First BUILD the plots, only plot them at the very end.
@@ -566,33 +607,64 @@ Do you observe specific areas where convalescent samples accumulate? What does t
 
 
 p1 <- data_Tcell %>%
+    # Keep "CD4+" and only covid19 samples  (Group == "CV19")
     filter(Tcellcompartment == "CD4+", Group == "CV19") %>%
+    # Plot the two just calculated UMAPs, color according to Disease.phase
     ggplot(aes(x = UMAP1, y = UMAP2, color = Disease.phase)) +
+    # Plot points
     geom_point(alpha = 0.5, size = 2) +
+    # ?Todo: What is happening?
     guides(colour = guide_legend(ncol = 1, override.aes = list(size = 3, alpha = 1))) +
+    # Define manual colors. We defined that the column "Disease.phase" should define the color
+    # Inside Disease.phase are the values "acute" and "convalescent"
+    # With scale_color_manual we can explicitly define which color they should get.
     scale_color_manual(values = c("acute" = "red", "convalescent" = "black"), name = "") +
     theme_classic() +
+    # Seting a proper title!
     ggtitle("CD4+ T cells") +
+    # legend.position="none" removes the legend
+    # plot.title = element_text(hjust...) adjusts the horizontal adjustment (placing) of the title.
     theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
 
 p2 <- data_Tcell %>%
+    # Keep "CD8+" and only covid19 samples  (Group == "CV19")
     filter(Tcellcompartment == "CD8+", Group == "CV19") %>%
+    # Plot the two just calculated UMAPs, color according to Disease.phase
     ggplot(aes(x = UMAP1, y = UMAP2, color = Disease.phase)) +
+    # Plot points
     geom_point(alpha = 0.5, size = 2) +
+    # ?Todo: What is happening?
     guides(colour = guide_legend(ncol = 1, override.aes = list(size = 3, alpha = 1))) +
+    # Define manual colors. We defined that the column "Disease.phase" should define the color
+    # Inside Disease.phase are the values "acute" and "convalescent"
+    # With scale_color_manual we can explicitly define which color they should get.
     scale_color_manual(values = c("acute" = "red", "convalescent" = "black"), name = "") +
     theme_classic() +
+    # Seting a proper title!
     ggtitle("CD8+ T cells") +
+    # legend.position="none" removes the legend
+    # plot.title = element_text(hjust...) adjusts the horizontal adjustment (placing) of the title.
     theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
 
 p3 <- data_Tcell %>%
+    # Keep "TCRgd+" and only covid19 samples  (Group == "CV19")
     filter(Tcellcompartment == "TCRgd+", Group == "CV19") %>%
+    # Plot the two just calculated UMAPs, color according to Disease.phase
     ggplot(aes(x = UMAP1, y = UMAP2, color = Disease.phase)) +
+    # Plot points
     geom_point(alpha = 0.5, size = 3) +
+    # ?Todo: What is happening?
     guides(colour = guide_legend(ncol = 1, override.aes = list(size = 3, alpha = 1))) +
+    # Define manual colors. We defined that the column "Disease.phase" should define the color
+    # Inside Disease.phase are the values "acute" and "convalescent"
+    # With scale_color_manual we can explicitly define which color they should get.
     scale_color_manual(values = c("acute" = "red", "convalescent" = "black"), name = "") +
     theme_classic() +
+    # Seting a proper title!
     ggtitle("TCRgd+ T cells") +
+    # The last plot SHOULD have a legend.
+    # Note that technically this legend is only legit for p3 not for p2 or p1 because the color
+    # limits might be different
     theme(plot.title = element_text(hjust = 0.5))
 
 
