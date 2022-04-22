@@ -72,7 +72,7 @@ pacman::p_load("ComplexHeatmap", install = TRUE)
 pacman::p_load("devtools", install = TRUE)
 # Additionally, you might need "Rtools"
 pacman::p_load_gh("JinmiaoChenLab/Rphenograph", install = TRUE)
-# pacman::p_load_gh("JinmiaoChenLab/cytofkit", install = TRUE)  # To solve..
+pacman::p_load_gh("JinmiaoChenLab/cytofkit", install = TRUE)  # To solve..
 
 prioritize(dplyr) # Must be tested
 
@@ -106,7 +106,7 @@ We start reading the data table "data_norm_sub.csv" with the function `read.csv(
 # Standard read.csv, works for most things, but fread is faster.
 # data_norm_sub <- read.csv("~/Documents/INsTRuCT_workshop/data_norm_sub5.csv")
 
-data_norm_sub_fread <- data.table::fread("../data/data_norm_sub5.csv")
+data_norm_sub_fread <- data.table::fread("~/Documents/INsTRuCT_workshop/data_norm_sub5.csv")
 
 # fread is a special format, such that we have to convert it first into a usual data.frame
 data_norm_sub <- data.frame(data_norm_sub_fread)
@@ -141,11 +141,6 @@ color_severity <- c(
 
 Let's look at how the values of markers are distributed:
 
-In the CyTOF community, people commonly use the hyperbolic arcsine (asinh) transformation: 
-$$
-\rm asinh(x) = \ln(x + \sqrt{x^2+1})
-$$
-
 
 ```{r panel_linear, fig.height=10, fig.width=10}
 data_norm_sub %>%
@@ -166,7 +161,10 @@ data_norm_sub %>%
     theme_classic()
 ```
 
-We notice that these are skewed distributions: Many small values, some very large values. Therefore, it makes more sense to look at these on a logarithmic scale:
+We notice that these are skewed distributions: Many small values, some very large values. Therefore, it makes more sense to look at these on a logarithmic scale. In the CyTOF community, people commonly use the hyperbolic arcsine (asinh) transformation: 
+$$
+\rm asinh(x) = \ln(x + \sqrt{x^2+1})
+$$
 
 
 ```{r panel_log, fig.height=10, fig.width=10}
@@ -447,13 +445,13 @@ Before calculating the UMAP, is important we transform our data (`asinh`) and ap
 ```{r computeUMAP}
 transformed_scaled_data <- data_Tcell %>%
     # Then apply scale() on all columns defined by sel_markers_Tcells
-    mutate_at(vars(sel_markers_Tcells), scale) %>%
-    # Select only the sel_markers_Tcells columns
-    select(sel_markers_Tcells)
+    mutate_at(vars(sel_markers_Tcells), scale)
 
 UMAP_TCRgd <- transformed_scaled_data %>%
     # Filter all cells which are TCRgd+
     filter(Tcellcompartment == "TCRgd+") %>%
+    # Select only the sel_markers_Tcells columns
+    select(sel_markers_Tcells) %>% 
     # Calculate UMAP with defined hyperparameters
     uwot::umap(
         # The size of local neighborhood
@@ -476,6 +474,8 @@ UMAP_TCRgd <- transformed_scaled_data %>%
 UMAP_CD4 <- transformed_scaled_data %>%
     # Filter all cells which are CD4+
     filter(Tcellcompartment == "CD4+") %>%
+   # Select only the sel_markers_Tcells columns
+    select(sel_markers_Tcells) %>% 
     # Calculate UMAP with defined hyperparameters
     uwot::umap(
         n_neighbors = 30,
@@ -489,6 +489,8 @@ UMAP_CD4 <- transformed_scaled_data %>%
 UMAP_CD8 <- transformed_scaled_data %>%
     # Filter all cells which are CD8+
     filter(Tcellcompartment == "CD8+") %>%
+   # Select only the sel_markers_Tcells columns
+    select(sel_markers_Tcells) %>% 
     # Calculate UMAP with defined hyperparameters
     uwot::umap(
         n_neighbors = 30,
@@ -502,17 +504,17 @@ UMAP_CD8 <- transformed_scaled_data %>%
 
 #### Add UMAP information to the complete data frame
 
-data_Tcell$UMAP1 <- NA
-data_Tcell$UMAP2 <- NA
+transformed_scaled_data$UMAP1 <- NA
+transformed_scaled_data$UMAP2 <- NA
 
-data_Tcell$UMAP1[data_Tcell$Tcellcompartment == "CD4+"] <- UMAP_CD4[, 1]
-data_Tcell$UMAP1[data_Tcell$Tcellcompartment == "CD8+"] <- UMAP_CD8[, 1]
-data_Tcell$UMAP1[data_Tcell$Tcellcompartment == "TCRgd+"] <- UMAP_TCRgd[, 1]
+transformed_scaled_data$UMAP1[transformed_scaled_data$Tcellcompartment == "CD4+"] <- UMAP_CD4[, 1]
+transformed_scaled_data$UMAP1[transformed_scaled_data$Tcellcompartment == "CD8+"] <- UMAP_CD8[, 1]
+transformed_scaled_data$UMAP1[transformed_scaled_data$Tcellcompartment == "TCRgd+"] <- UMAP_TCRgd[, 1]
 
 
-data_Tcell$UMAP2[data_Tcell$Tcellcompartment == "CD4+"] <- UMAP_CD4[, 2]
-data_Tcell$UMAP2[data_Tcell$Tcellcompartment == "CD8+"] <- UMAP_CD8[, 2]
-data_Tcell$UMAP2[data_Tcell$Tcellcompartment == "TCRgd+"] <- UMAP_TCRgd[, 2]
+transformed_scaled_data$UMAP2[transformed_scaled_data$Tcellcompartment == "CD4+"] <- UMAP_CD4[, 2]
+transformed_scaled_data$UMAP2[transformed_scaled_data$Tcellcompartment == "CD8+"] <- UMAP_CD8[, 2]
+transformed_scaled_data$UMAP2[transformed_scaled_data$Tcellcompartment == "TCRgd+"] <- UMAP_TCRgd[, 2]
 ```
 
 We now plot each UMAP, coloured by severity, disease phase, and intensity of a selected marker. 
@@ -525,7 +527,7 @@ Do you observe specific areas where CV19 samples accumulate? What does this mean
 ```{r UMAP_severity, fig.height=7, fig.width=21}
 
 
-p1 <- data_Tcell %>%
+p1 <- transformed_scaled_data %>%
     # Select CD4+ Tcell compartment
     filter(Tcellcompartment == "CD4+") %>%
     # Sample 30000 rows (=cells)
@@ -547,7 +549,7 @@ p1 <- data_Tcell %>%
     # plot.title = element_text(hjust...) adjusts the horizontal adjustment (placing) of the title.
     theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
 
-p2 <- data_Tcell %>%
+p2 <- transformed_scaled_data %>%
     # Select CD8+ Tcell compartment
     filter(Tcellcompartment == "CD8+") %>%
     # Sample 30000 rows (=cells)
@@ -569,7 +571,7 @@ p2 <- data_Tcell %>%
     # plot.title = element_text(hjust...) adjusts the horizontal adjustment (placing) of the title.
     theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
 
-p3 <- data_Tcell %>%
+p3 <- transformed_scaled_data %>%
     # Select TCRgd+ Tcell compartment
     filter(Tcellcompartment == "TCRgd+") %>%
     # Plot the two just calculated UMAPs, color according to sev_merge(severity)
@@ -606,7 +608,7 @@ Do you observe specific areas where convalescent samples accumulate? What does t
 ```{r UMAP_diseasephase, fig.height=7, fig.width=21}
 
 
-p1 <- data_Tcell %>%
+p1 <- transformed_scaled_data %>%
     # Keep "CD4+" and only covid19 samples  (Group == "CV19")
     filter(Tcellcompartment == "CD4+", Group == "CV19") %>%
     # Plot the two just calculated UMAPs, color according to Disease.phase
@@ -626,7 +628,7 @@ p1 <- data_Tcell %>%
     # plot.title = element_text(hjust...) adjusts the horizontal adjustment (placing) of the title.
     theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
 
-p2 <- data_Tcell %>%
+p2 <- transformed_scaled_data %>%
     # Keep "CD8+" and only covid19 samples  (Group == "CV19")
     filter(Tcellcompartment == "CD8+", Group == "CV19") %>%
     # Plot the two just calculated UMAPs, color according to Disease.phase
@@ -646,7 +648,7 @@ p2 <- data_Tcell %>%
     # plot.title = element_text(hjust...) adjusts the horizontal adjustment (placing) of the title.
     theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
 
-p3 <- data_Tcell %>%
+p3 <- transformed_scaled_data %>%
     # Keep "TCRgd+" and only covid19 samples  (Group == "CV19")
     filter(Tcellcompartment == "TCRgd+", Group == "CV19") %>%
     # Plot the two just calculated UMAPs, color according to Disease.phase
@@ -673,14 +675,10 @@ plot_grid(p1, p2, p3, nrow = 1)
 
 ### Marker intensity
 
-Remember to do the corresponding transformations on the intensity values.
-
 
 ```{r UMAP_markers, fig.height=7, fig.width=21}
 
-p1 <- data_Tcell %>%
-    mutate_at(vars(sel_markers_Tcells), asinh) %>%
-    mutate_at(vars(sel_markers_Tcells), scale) %>%
+p1 <- transformed_scaled_data %>%
     filter(Tcellcompartment == "CD4+") %>%
     sample_n(30000) %>%
     ggplot(aes(x = UMAP1, y = UMAP2, color = HLADR)) +
@@ -691,9 +689,7 @@ p1 <- data_Tcell %>%
     scale_color_gradient2(low = "blue", mid = "grey", high = "red", midpoint = 0)
 
 
-p2 <- data_Tcell %>%
-    mutate_at(vars(sel_markers_Tcells), asinh) %>%
-    mutate_at(vars(sel_markers_Tcells), scale) %>%
+p2 <- transformed_scaled_data %>%
     filter(Tcellcompartment == "CD8+") %>%
     sample_n(30000) %>%
     ggplot(aes(x = UMAP1, y = UMAP2, color = HLADR)) +
@@ -704,9 +700,7 @@ p2 <- data_Tcell %>%
     scale_color_gradient2(low = "blue", mid = "grey", high = "red", midpoint = 0)
 
 
-p3 <- data_Tcell %>%
-    mutate_at(vars(sel_markers_Tcells), asinh) %>%
-    mutate_at(vars(sel_markers_Tcells), scale) %>%
+p3 <- transformed_scaled_data %>%
     filter(Tcellcompartment == "TCRgd+") %>%
     ggplot(aes(x = UMAP1, y = UMAP2, color = HLADR)) +
     geom_point(alpha = 0.5, size = 3) +
@@ -728,9 +722,7 @@ plot_grid(p1, p2, p3, nrow = 1)
 We now perform unsupervised clustering analysis on samples from control, FLI, HIV, HBV, and acute COVID-19 using  the selected markers. As done for the UMAP calculation, before clustering is important we transform and z-score normalize our data. Let's look at the distribution of the markers used for clustering:
 
 ```{r distMarkersClust, fig.height=10, fig.width=10}
-data_Tcell %>%
-    mutate_at(vars(sel_markers_Tcells), asinh) %>%
-    mutate_at(vars(sel_markers_Tcells), scale) %>%
+transformed_scaled_data %>%
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
     select(sel_markers_Tcells) %>%
     pivot_longer(names_to = "marker", values_to = "value", everything()) %>%
@@ -754,9 +746,7 @@ Due to time constraints, we will only cluster one T cell compartment, eg.: CD8+ 
 start_time <- Sys.time()
 
 
-clust_cd8_rpheno <- data_Tcell %>%
-    mutate_at(vars(sel_markers_Tcells), asinh) %>%
-    mutate_at(vars(sel_markers_Tcells), scale) %>%
+clust_cd8_rpheno <- transformed_scaled_data %>%
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
     select(sel_markers_Tcells) %>%
     Rphenograph(k = 30)
@@ -772,14 +762,15 @@ print(paste("\n", time_elapsed, "minutes passed"))
 After running the clustering algorithm, we add a column "Rpheno" in the data table with the cluster label for each cell:
 
 ```{r add_clust_info}
-clust_ids <- data_Tcell %>%
+clust_ids <- transformed_scaled_data %>%
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
     pull(cellid)
 
-clust_cd8_rpheno <- tibble(cellid = clust_ids, Rpheno = as.character(membership(clust_cd8_rpheno)))
+clust_cd8_rpheno <- tibble(cellid = clust_ids, Rpheno = as.character(igraph::membership(clust_cd8_rpheno)))
 
-data_Tcell <- data_Tcell %>% left_join(clust_cd8_rpheno)
-data_Tcell <- data_Tcell %>% mutate(Rpheno = factor(Rpheno, levels = str_sort(unique(Rpheno), numeric = TRUE)))
+transformed_scaled_data <- transformed_scaled_data %>% left_join(clust_cd8_rpheno)
+
+transformed_scaled_data <- transformed_scaled_data %>% mutate(Rpheno = factor(Rpheno, levels = str_sort(unique(Rpheno), numeric = TRUE)))
 ```
 
 #### FlowSOM
@@ -789,9 +780,7 @@ data_Tcell <- data_Tcell %>% mutate(Rpheno = factor(Rpheno, levels = str_sort(un
 ```{r runflowsom, results="hide"}
 start_time <- Sys.time()
 
-clust_cd8_flowsom <- data_Tcell %>%
-    mutate_at(vars(sel_markers_Tcells), asinh) %>%
-    mutate_at(vars(sel_markers_Tcells), scale) %>%
+clust_cd8_flowsom <- transformed_scaled_data %>%
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
     select(sel_markers_Tcells) %>%
     cytof_cluster(xdata = ., method = "FlowSOM", FlowSOM_k = 10)
@@ -807,13 +796,13 @@ print(paste("\n", time_elapsed, "minutes passed"))
 After running the clustering algorithm, we add a column "flowsom" in the data table with the cluster label for each cell:
 
 ```{r add_clust_info_fs}
-clust_ids <- data_Tcell %>%
+clust_ids <- transformed_scaled_data %>%
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
     pull(cellid)
 
 clust_cd8_flowsom <- tibble(cellid = clust_ids, flowsom = as.character(clust_cd8_flowsom))
-data_Tcell <- data_Tcell %>% left_join(clust_cd8_flowsom)
-data_Tcell <- data_Tcell %>% mutate(flowsom = factor(flowsom, levels = str_sort(unique(flowsom), numeric = TRUE)))
+transformed_scaled_data <- transformed_scaled_data %>% left_join(clust_cd8_flowsom)
+transformed_scaled_data <- transformed_scaled_data %>% mutate(flowsom = factor(flowsom, levels = str_sort(unique(flowsom), numeric = TRUE)))
 ```
 
 ### Cluster size {.tabset}
@@ -823,7 +812,7 @@ We now visualize the number of cells in each cluster:
 #### Rphenograph
 
 ```{r clustSize, fig.height=5, fig.width=10}
-data_Tcell %>%
+transformed_scaled_data %>%
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
     count(Rpheno) %>%
     ggplot(aes(x = Rpheno, y = n, label = n)) +
@@ -835,7 +824,7 @@ data_Tcell %>%
 #### FlowSOM
 
 ```{r clustSize_fs, fig.height=5, fig.width=10}
-data_Tcell %>%
+transformed_scaled_data %>%
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
     count(flowsom) %>%
     ggplot(aes(x = flowsom, y = n, label = n)) +
@@ -851,7 +840,7 @@ And then plot the UMAP, this time coloured by cluster:
 #### RPhenograph
 
 ```{r UMAP_clusters_Rpheno, fig.height=5, fig.width=7}
-data_Tcell %>%
+transformed_scaled_data %>%
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
     ggplot(aes(x = UMAP1, y = UMAP2, color = Rpheno)) +
     geom_point(alpha = 0.5, size = 1) +
@@ -864,7 +853,7 @@ data_Tcell %>%
 #### FlowSOM
 
 ```{r UMAP_clusters_fs, fig.height=5, fig.width=7}
-data_Tcell %>%
+transformed_scaled_data %>%
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
     ggplot(aes(x = UMAP1, y = UMAP2, color = flowsom)) +
     geom_point(alpha = 0.5, size = 1) +
@@ -881,9 +870,7 @@ Let's look at the marker distribution per cluster:
 #### RPhenograph
 
 ```{r distMarkersClust_rpheno, fig.height=10, fig.width=10}
-data_Tcell %>%
-    mutate_at(vars(sel_markers_Tcells), asinh) %>%
-    mutate_at(vars(sel_markers_Tcells), scale) %>%
+transformed_scaled_data %>%
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
     select(sel_markers_Tcells, Rpheno) %>%
     pivot_longer(names_to = "marker", values_to = "value", sel_markers_Tcells) %>%
@@ -896,9 +883,7 @@ data_Tcell %>%
 #### FlowSOM
 
 ```{r distMarkersClust_flowsom, fig.height=10, fig.width=10}
-data_Tcell %>%
-    mutate_at(vars(sel_markers_Tcells), asinh) %>%
-    mutate_at(vars(sel_markers_Tcells), scale) %>%
+transformed_scaled_data %>%
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
     select(sel_markers_Tcells, flowsom) %>%
     pivot_longer(names_to = "marker", values_to = "value", sel_markers_Tcells) %>%
@@ -923,9 +908,7 @@ We now want to actually understand what are these clusters we found. For this, w
 
 ```{r heatmapClusters, fig.height=5, fig.width=5}
 
-data_Tcell %>%
-    mutate_at(vars(sel_markers_Tcells), asinh) %>%
-    mutate_at(vars(sel_markers_Tcells), scale) %>%
+transformed_scaled_data %>%
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
     select(sel_markers_Tcells, Rpheno) %>%
     group_by(Rpheno) %>%
@@ -940,9 +923,7 @@ data_Tcell %>%
 #### FlowSOM
 
 ```{r heatmapClusters_fs, fig.height=5, fig.width=5}
-data_Tcell %>%
-    mutate_at(vars(sel_markers_Tcells), asinh) %>%
-    mutate_at(vars(sel_markers_Tcells), scale) %>%
+transformed_scaled_data %>%
     filter(Tcellcompartment == "CD8+" & Disease.phase == "acute") %>%
     select(sel_markers_Tcells, flowsom) %>%
     group_by(flowsom) %>%
@@ -963,9 +944,7 @@ With the library "pheatmap" we can additionally group the clusters (dendogram) a
 ```{r heatmapClusters_pheatmap, fig.height=5, fig.width=5}
 
 
-data_heatmap <- data_Tcell %>%
-    mutate_at(vars(sel_markers_Tcells), asinh) %>%
-    mutate_at(vars(sel_markers_Tcells), scale) %>%
+data_heatmap <- transformed_scaled_data %>%
     filter(Tcellcompartment == "CD8+" & Disease.phase == "acute") %>%
     select(sel_markers_Tcells, Rpheno) %>%
     group_by(Rpheno) %>%
@@ -1000,9 +979,7 @@ data_heatmap %>%
 
 ```{r heatmapClusters_pheatmap_fs, fig.height=5, fig.width=5}
 
-data_heatmap <- data_Tcell %>%
-    mutate_at(vars(sel_markers_Tcells), asinh) %>%
-    mutate_at(vars(sel_markers_Tcells), scale) %>%
+data_heatmap <- transformed_scaled_data %>%
     filter(Tcellcompartment == "CD8+" & Disease.phase == "acute") %>%
     select(sel_markers_Tcells, flowsom) %>%
     group_by(flowsom) %>%
@@ -1040,7 +1017,7 @@ How much percentage of cells from RPhenograph cluster X where classified in Flow
 
 ```{r}
 
-data_heatmap <- data_Tcell %>%
+data_heatmap <- transformed_scaled_data %>%
     filter(Tcellcompartment == "CD8+" & Disease.phase == "acute") %>%
     count(Rpheno, flowsom) %>%
     tidyr::complete(Rpheno, flowsom, fill = list(n = 0)) %>%
@@ -1072,7 +1049,7 @@ Finally, we can calculate the abundance of each cluster in each sample and check
 
 
 ```{r defineIDs}
-selected_ids <- data_Tcell %>%
+selected_ids <- transformed_scaled_data %>%
     filter(Disease.phase == "acute") %>%
     count(Individuals, id, Group, sev_merge, Days.post.symptom.onset) %>%
     select(-n) %>%
@@ -1095,7 +1072,7 @@ We can visualize the abundance of each cluster per donor as boxplots per severit
 
 ```{r boxplot_clust_abundance, fig.height=10, fig.width=10}
 
-data_Tcell %>%
+transformed_scaled_data %>%
     filter(id %in% selected_ids, Tcellcompartment == "CD8+") %>%
     count(id, sev_merge, Tcellcompartment, Rpheno) %>%
     group_by(id, Tcellcompartment) %>%
@@ -1125,7 +1102,7 @@ data_Tcell %>%
 ### FlowSOM
 
 ```{r boxplot_clust_flow_abundance, fig.height=10, fig.width=10}
-data_Tcell %>%
+transformed_scaled_data %>%
     filter(id %in% selected_ids, Tcellcompartment == "CD8+") %>%
     count(id, sev_merge, Tcellcompartment, flowsom) %>%
     group_by(id, Tcellcompartment) %>%
@@ -1165,9 +1142,6 @@ Make a presentation/talk (up to 20 minutes long, 10 minutes discussion) about th
 Doesn’t have to be a proper PowerPoint, you can just open the R Markdown and go through it.  
 
 Following questions should be touched upon:  
-
-
-??? Do we have answers to all of these things?
 
 * Pre-gating: 
   + What is the purpose of doing it? 
