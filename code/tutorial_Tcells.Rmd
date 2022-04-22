@@ -364,7 +364,7 @@ data_Tcell <- data_Tcell %>%
     # Left join takes the "left" argument, here given implicitely with "%>%", so it is data_Tcell
     # Then the dataframe "gates" is joined with data_Tcell using "Run" as "join"-value
     left_join(gates) %>%
-    # ?Todo: What is happening?
+    # According to the gates we assign a T cell compartment label to each cell
     mutate(Tcellcompartment = case_when(
         TCRgd <= TCRgdthreshold & CD8 <= CD8threshold ~ "CD4+",
         TCRgd <= TCRgdthreshold & CD8 > CD8threshold ~ "CD8+",
@@ -400,7 +400,7 @@ data_Tcell %>%
     # Plot the percentage (y-axis) of each Tcellcompartment (x-axis) colored by Tcellcompartment
     # and label it with the percentage, rounded to 2 decimal points
     ggplot(aes(x = Tcellcompartment, y = perc, fill = Tcellcompartment, label = round(perc, 2))) +
-    # ?Todo: What is happening? ? Todo: What is geom_col doing?
+    # We use geom_col to plot the number of cells per compartment as column bars. Dodge means the bars are not stacked, but separated bars. 
     geom_col(position = "dodge") +
     # We defined WHAT the labels should contain, now we actually plot them
     geom_label() +
@@ -536,7 +536,7 @@ p1 <- transformed_scaled_data %>%
     ggplot(aes(x = UMAP1, y = UMAP2, color = sev_merge)) +
     # Plot points
     geom_point(alpha = 0.5, size = 2) +
-    # ?Todo: What is happening?
+    # Bigger and not transparent dots for the legend
     guides(colour = guide_legend(ncol = 1, override.aes = list(size = 3, alpha = 1))) +
     # Use our previously defined colors
     scale_color_manual(values = color_severity, name = "") +
@@ -558,7 +558,7 @@ p2 <- transformed_scaled_data %>%
     ggplot(aes(x = UMAP1, y = UMAP2, color = sev_merge)) +
     # Plot points
     geom_point(alpha = 0.5, size = 2) +
-    # ?Todo: What is happening?
+    # Bigger and not transparent dots for the legend
     guides(colour = guide_legend(ncol = 1, override.aes = list(size = 3, alpha = 1))) +
     # Use our previously defined colors
     scale_color_manual(values = color_severity, name = "") +
@@ -578,7 +578,7 @@ p3 <- transformed_scaled_data %>%
     ggplot(aes(x = UMAP1, y = UMAP2, color = sev_merge)) +
     # Plot points
     geom_point(alpha = 0.5, size = 3) +
-    # ?Todo: What is happening?
+    #  Bigger and not transparent dots for the legend
     guides(colour = guide_legend(ncol = 1, override.aes = list(size = 3, alpha = 1))) +
     # Use our previously defined colors
     scale_color_manual(values = color_severity, name = "") +
@@ -615,7 +615,7 @@ p1 <- transformed_scaled_data %>%
     ggplot(aes(x = UMAP1, y = UMAP2, color = Disease.phase)) +
     # Plot points
     geom_point(alpha = 0.5, size = 2) +
-    # ?Todo: What is happening?
+    #  Bigger and not transparent dots for the legend
     guides(colour = guide_legend(ncol = 1, override.aes = list(size = 3, alpha = 1))) +
     # Define manual colors. We defined that the column "Disease.phase" should define the color
     # Inside Disease.phase are the values "acute" and "convalescent"
@@ -635,7 +635,7 @@ p2 <- transformed_scaled_data %>%
     ggplot(aes(x = UMAP1, y = UMAP2, color = Disease.phase)) +
     # Plot points
     geom_point(alpha = 0.5, size = 2) +
-    # ?Todo: What is happening?
+    #  Bigger and not transparent dots for the legend
     guides(colour = guide_legend(ncol = 1, override.aes = list(size = 3, alpha = 1))) +
     # Define manual colors. We defined that the column "Disease.phase" should define the color
     # Inside Disease.phase are the values "acute" and "convalescent"
@@ -655,7 +655,7 @@ p3 <- transformed_scaled_data %>%
     ggplot(aes(x = UMAP1, y = UMAP2, color = Disease.phase)) +
     # Plot points
     geom_point(alpha = 0.5, size = 3) +
-    # ?Todo: What is happening?
+    # Bigger and not transparent dots for the legend
     guides(colour = guide_legend(ncol = 1, override.aes = list(size = 3, alpha = 1))) +
     # Define manual colors. We defined that the column "Disease.phase" should define the color
     # Inside Disease.phase are the values "acute" and "convalescent"
