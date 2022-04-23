@@ -72,7 +72,7 @@ pacman::p_load("ComplexHeatmap", install = TRUE)
 pacman::p_load("devtools", install = TRUE)
 # Additionally, you might need "Rtools"
 pacman::p_load_gh("JinmiaoChenLab/Rphenograph", install = TRUE)
-pacman::p_load_gh("JinmiaoChenLab/cytofkit", install = TRUE)  # To solve..
+# pacman::p_load_gh("JinmiaoChenLab/cytofkit", install = TRUE)  # To solve..
 
 prioritize(dplyr) # Must be tested
 
@@ -106,7 +106,7 @@ We start reading the data table "data_norm_sub.csv" with the function `read.csv(
 # Standard read.csv, works for most things, but fread is faster.
 # data_norm_sub <- read.csv("~/Documents/INsTRuCT_workshop/data_norm_sub5.csv")
 
-data_norm_sub_fread <- data.table::fread("~/Documents/INsTRuCT_workshop/data_norm_sub5.csv")
+data_norm_sub_fread <- data.table::fread("../data/data_norm_sub5.csv")
 
 # fread is a special format, such that we have to convert it first into a usual data.frame
 data_norm_sub <- data.frame(data_norm_sub_fread)
@@ -141,6 +141,11 @@ color_severity <- c(
 
 Let's look at how the values of markers are distributed:
 
+In the CyTOF community, people commonly use the hyperbolic arcsine (asinh) transformation: 
+$$
+\rm asinh(x) = \ln(x + \sqrt{x^2+1})
+$$
+
 
 ```{r panel_linear, fig.height=10, fig.width=10}
 data_norm_sub %>%
@@ -161,10 +166,7 @@ data_norm_sub %>%
     theme_classic()
 ```
 
-We notice that these are skewed distributions: Many small values, some very large values. Therefore, it makes more sense to look at these on a logarithmic scale. In the CyTOF community, people commonly use the hyperbolic arcsine (asinh) transformation: 
-$$
-\rm asinh(x) = \ln(x + \sqrt{x^2+1})
-$$
+We notice that these are skewed distributions: Many small values, some very large values. Therefore, it makes more sense to look at these on a logarithmic scale:
 
 
 ```{r panel_log, fig.height=10, fig.width=10}
@@ -486,7 +488,7 @@ UMAP_CD4 <- transformed_scaled_data %>%
         fast_sgd = TRUE
     )
 
-UMAP_CD8 <- transformed_scaled_data %>%
+UMAP_CD8 <- transformed_scaled_data_Tcell %>%
     # Filter all cells which are CD8+
     filter(Tcellcompartment == "CD8+") %>%
    # Select only the sel_markers_Tcells columns
@@ -680,33 +682,64 @@ plot_grid(p1, p2, p3, nrow = 1)
 
 p1 <- transformed_scaled_data %>%
     filter(Tcellcompartment == "CD4+") %>%
+    # Subsample 30000 cells
     sample_n(30000) %>%
+    # Plot the two just calculated UMAPs, color according to HLADR values
     ggplot(aes(x = UMAP1, y = UMAP2, color = HLADR)) +
+    # Make points
     geom_point(alpha = 0.5, size = 2) +
     theme_classic() +
+    # Setting proper title
     ggtitle("CD4+ T cells") +
+    # No legend
     theme(legend.position = "none", plot.title = element_text(hjust = 0.5)) +
+    # scale_color_gradient2 sets the color-scale for the aes "color"
+    # Where you can define which colors low, mid and high values should have
+    # Then it makes two color-gradients:
+    #   low -> mid
+    #   mid -> low
+    # Mixing the colors appropriately according to the value of the given column in aes()
     scale_color_gradient2(low = "blue", mid = "grey", high = "red", midpoint = 0)
 
 
 p2 <- transformed_scaled_data %>%
     filter(Tcellcompartment == "CD8+") %>%
+    # Subsample 30000 cells
     sample_n(30000) %>%
+    # Plot the two just calculated UMAPs, color according to HLADR values
     ggplot(aes(x = UMAP1, y = UMAP2, color = HLADR)) +
+    # Make points
     geom_point(alpha = 0.5, size = 2) +
     theme_classic() +
+    # Setting proper title
     ggtitle("CD8+ T cells") +
+    # No legend
     theme(legend.position = "none", plot.title = element_text(hjust = 0.5)) +
+    # scale_color_gradient2 sets the color-scale for the aes "color"
+    # Where you can define which colors low, mid and high values should have
+    # Then it makes two color-gradients:
+    #   low -> mid
+    #   mid -> low
+    # Mixing the colors appropriately according to the value of the given column in aes()
     scale_color_gradient2(low = "blue", mid = "grey", high = "red", midpoint = 0)
 
 
 p3 <- transformed_scaled_data %>%
     filter(Tcellcompartment == "TCRgd+") %>%
+    # Plot the two just calculated UMAPs, color according to HLADR values
     ggplot(aes(x = UMAP1, y = UMAP2, color = HLADR)) +
     geom_point(alpha = 0.5, size = 3) +
     theme_classic() +
+    # Setting proper title
     ggtitle("TCRgd+ T cells") +
+    # Last plot, having legend again (Mind that color scale can be different again!)
     theme(plot.title = element_text(hjust = 0.5)) +
+    # scale_color_gradient2 sets the color-scale for the aes "color"
+    # Where you can define which colors low, mid and high values should have
+    # Then it makes two color-gradients:
+    #   low -> mid
+    #   mid -> low
+    # Mixing the colors appropriately according to the value of the given column in aes()
     scale_color_gradient2(low = "blue", mid = "grey", high = "red", midpoint = 0)
 
 plot_grid(p1, p2, p3, nrow = 1)
@@ -724,10 +757,18 @@ We now perform unsupervised clustering analysis on samples from control, FLI, HI
 ```{r distMarkersClust, fig.height=10, fig.width=10}
 transformed_scaled_data %>%
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
+    # Keep only the columns defined by sel_markers_Tcells
     select(sel_markers_Tcells) %>%
+    # Make the table from wide to long format
+    # The previous column names go into the new column "marker"
+    # The previous column's _values_ go into the new column "marker"
+    # And this should be applied to all (everything()) previous columns
     pivot_longer(names_to = "marker", values_to = "value", everything()) %>%
-    ggplot(aes(value)) +
+    # "value" on the x-axis
+    ggplot(aes(x = value)) +
+    # Make density plots
     geom_density() +
+    # Split the plots according to the "marker" value, scale them freely
     facet_wrap(~marker, scale = "free") +
     theme_classic()
 ```
@@ -743,20 +784,33 @@ Due to time constraints, we will only cluster one T cell compartment, eg.: CD8+ 
 **IMPORTANT!** In RPhenograph we define the number of nearest neighbours. 
 
 ```{r runRphenograph, results="hide"}
+# Sys.time() returns the current time on your PC
 start_time <- Sys.time()
 
 
 clust_cd8_rpheno <- transformed_scaled_data %>%
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
+    # Keep only the columns defined by sel_markers_Tcells
     select(sel_markers_Tcells) %>%
+    # k: number of nearest neighbours (default:30)
     Rphenograph(k = 30)
 
+# Sys.time() returns the current time on your PC
 end_time <- Sys.time()
 ```
 
 ```{r time_elapsed_Rpheno}
-time_elapsed <- round(as.numeric(gsub("Time difference of ", "", difftime(end_time, start_time, units = "mins"))), 2)
-print(paste("\n", time_elapsed, "minutes passed"))
+# with difftime you can calculate the difference between two times received by Sys.time()
+# You can also supply the unit you want to see (here "minutes")
+#
+# as.numeric() then makes a PC-usable number from that
+# and round(..., 2) rounds to the second place after comma
+time_elapsed <- round(as.numeric(difftime(end_time, start_time, units = "mins")), 2)
+
+# paste() combines multiple strings together in R
+# "\n" is a special string to make a new line when 
+# cat() is used to actually print to console
+cat(paste("\n", time_elapsed, "minutes passed"))
 ```
 
 After running the clustering algorithm, we add a column "Rpheno" in the data table with the cluster label for each cell:
@@ -764,6 +818,8 @@ After running the clustering algorithm, we add a column "Rpheno" in the data tab
 ```{r add_clust_info}
 clust_ids <- transformed_scaled_data %>%
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
+    # Extract the column "cellid" from the dataframe as a usual vector
+    # This column uniquely identifies each cell
     pull(cellid)
 
 clust_cd8_rpheno <- tibble(cellid = clust_ids, Rpheno = as.character(igraph::membership(clust_cd8_rpheno)))
