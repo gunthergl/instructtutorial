@@ -220,8 +220,7 @@ data_norm_sub_trans %>%
     # Plot a rectangle with the given coordinates
     # We found the coordinates by hand
     # Alpha=0 because otherwise you would have a filled rectangle
-    geom_rect(mapping = aes(xmin = 1, xmax = 8, ymin = 4.3, ymax = 8), color = "black", alpha = 0) +
-    theme_classic()
+    geom_rect(mapping = aes(xmin = 1, xmax = 8, ymin = 4.3, ymax = 8), color = "black", alpha = 0)
 ```
 
 ### CD45+CD3+CD15-CD19-
@@ -247,8 +246,7 @@ data_norm_sub_trans %>%
     # Alpha because geom_rect makes a filled rectangle otherwise
     geom_rect(mapping = aes(
         xmin = 0, xmax = 2.9, ymin = 0, ymax = 4
-    ), color = "black", alpha = 0) +
-    theme_classic()
+    ), color = "black", alpha = 0)
 ```
 
 ### Percentage of T cells
@@ -331,7 +329,6 @@ data_norm_sub_trans %>%
     ylab("Percentage of T cells (%)") +
     # Set x-axis label to empty ("")
     xlab("") +
-    theme_classic() +
     # Remove the x-axis text and ticks.
     theme(
         axis.text.x = element_blank(),
@@ -381,7 +378,6 @@ data_Tcell %>%
     ggplot(aes(x = CD8, y = TCRgd)) +
     # Use points, color them according to Tcellcompartment with certain size and alpha.
     geom_point(aes(color = Tcellcompartment), size = 0.5, alpha = 0.5) +
-    theme_classic() +
     # ? Todo: What is happening here?
     guides(colour = guide_legend(override.aes = list(size = 5)))
 ```
@@ -406,7 +402,6 @@ data_Tcell %>%
     geom_col(position = "dodge") +
     # We defined WHAT the labels should contain, now we actually plot them
     geom_label() +
-    theme_classic() +
     # Rotate the x-axis label, remove the legend
     theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1), legend.position = "none") +
     # Set the y-axis label
@@ -542,7 +537,6 @@ p1 <- transformed_scaled_data %>%
     guides(colour = guide_legend(ncol = 1, override.aes = list(size = 3, alpha = 1))) +
     # Use our previously defined colors
     scale_color_manual(values = color_severity, name = "") +
-    theme_classic() +
     # Set a proper title!
     # Always set proper titles. The idea is that you should be able to send a plot to you boss and
     # he should understand what happens by just looking at the plot.
@@ -564,7 +558,6 @@ p2 <- transformed_scaled_data %>%
     guides(colour = guide_legend(ncol = 1, override.aes = list(size = 3, alpha = 1))) +
     # Use our previously defined colors
     scale_color_manual(values = color_severity, name = "") +
-    theme_classic() +
     # Set a proper title!
     # Always set proper titles. The idea is that you should be able to send a plot to you boss and
     # he should understand what happens by just looking at the plot.
@@ -584,7 +577,6 @@ p3 <- transformed_scaled_data %>%
     guides(colour = guide_legend(ncol = 1, override.aes = list(size = 3, alpha = 1))) +
     # Use our previously defined colors
     scale_color_manual(values = color_severity, name = "") +
-    theme_classic() +
     # Set a proper title!
     # Always set proper titles. The idea is that you should be able to send a plot to you boss and
     # he should understand what happens by just looking at the plot.
@@ -623,7 +615,6 @@ p1 <- transformed_scaled_data %>%
     # Inside Disease.phase are the values "acute" and "convalescent"
     # With scale_color_manual we can explicitly define which color they should get.
     scale_color_manual(values = c("acute" = "red", "convalescent" = "black"), name = "") +
-    theme_classic() +
     # Seting a proper title!
     ggtitle("CD4+ T cells") +
     # legend.position="none" removes the legend
@@ -643,7 +634,6 @@ p2 <- transformed_scaled_data %>%
     # Inside Disease.phase are the values "acute" and "convalescent"
     # With scale_color_manual we can explicitly define which color they should get.
     scale_color_manual(values = c("acute" = "red", "convalescent" = "black"), name = "") +
-    theme_classic() +
     # Seting a proper title!
     ggtitle("CD8+ T cells") +
     # legend.position="none" removes the legend
@@ -663,7 +653,6 @@ p3 <- transformed_scaled_data %>%
     # Inside Disease.phase are the values "acute" and "convalescent"
     # With scale_color_manual we can explicitly define which color they should get.
     scale_color_manual(values = c("acute" = "red", "convalescent" = "black"), name = "") +
-    theme_classic() +
     # Seting a proper title!
     ggtitle("TCRgd+ T cells") +
     # The last plot SHOULD have a legend.
@@ -692,7 +681,6 @@ p1 <- transformed_scaled_data %>%
     ggplot(aes(x = UMAP1, y = UMAP2, color = HLADR)) +
     # Make points
     geom_point(alpha = 0.5, size = 2) +
-    theme_classic() +
     # Setting proper title
     ggtitle("CD4+ T cells") +
     # No legend
@@ -715,7 +703,6 @@ p2 <- transformed_scaled_data %>%
     ggplot(aes(x = UMAP1, y = UMAP2, color = HLADR)) +
     # Make points
     geom_point(alpha = 0.5, size = 2) +
-    theme_classic() +
     # Setting proper title
     ggtitle("CD8+ T cells") +
     # No legend
@@ -735,7 +722,6 @@ p3 <- transformed_scaled_data %>%
     # Plot the two just calculated UMAPs, color according to HLADR values
     ggplot(aes(x = UMAP1, y = UMAP2, color = HLADR)) +
     geom_point(alpha = 0.5, size = 3) +
-    theme_classic() +
     # Setting proper title
     ggtitle("TCRgd+ T cells") +
     # Last plot, having legend again (Mind that color scale can be different again!)
@@ -780,8 +766,7 @@ transformed_scaled_data %>%
     # Make density plots
     geom_density() +
     # Split the plots according to the "marker" value, scale them freely
-    facet_wrap(~marker, scale = "free") +
-    theme_classic()
+    facet_wrap(~marker, scale = "free")
 ```
 
 Due to time constraints, we will only cluster one T cell compartment, eg.: CD8+ T cells.  
@@ -956,7 +941,6 @@ transformed_scaled_data %>%
     ggplot(aes(x = Rpheno, y = n, label = n)) +
     # Make a bar chart
     geom_col(position = "dodge") +
-    theme_classic() +
     # Add labels on each bar
     geom_label()
 ```
@@ -976,7 +960,6 @@ transformed_scaled_data %>%
     ggplot(aes(x = flowsom, y = n, label = n)) +
     # Make a bar chart
     geom_col(position = "dodge") +
-    theme_classic() +
     # Add labels on each bar
     geom_label()
 ```
@@ -997,7 +980,6 @@ transformed_scaled_data %>%
     geom_point(alpha = 0.5, size = 1) +
     # Bigger and not transparent dots for the legend
     guides(colour = guide_legend(ncol = 1, override.aes = list(size = 3, alpha = 1))) +
-    theme_classic() +
     # Setting proper title
     ggtitle("CD8+ T cells") +
     # Center the plot title
@@ -1016,7 +998,6 @@ transformed_scaled_data %>%
     geom_point(alpha = 0.5, size = 1) +
     # Bigger and not transparent dots for the legend
     guides(colour = guide_legend(ncol = 1, override.aes = list(size = 3, alpha = 1))) +
-    theme_classic() +
     # Setting proper title
     ggtitle("CD8+ T cells") +
     # Center the plot title
@@ -1047,8 +1028,7 @@ transformed_scaled_data %>%
     # geom_density_ridges plots a density plot for each value defined by y
     ggridges::geom_density_ridges() +
     # Make the same kind of multi-density-plot for each marker!
-    facet_wrap(~marker, scale = "free") +
-    theme_classic()
+    facet_wrap(~marker, scale = "free")
 ```
 
 #### FlowSOM
@@ -1071,8 +1051,7 @@ transformed_scaled_data %>%
     # geom_density_ridges plots a density plot for each value defined by y
     geom_density_ridges() +
     # Make the same kind of multi-density-plot for each marker!
-    facet_wrap(~marker, scale = "free") +
-    theme_classic()
+    facet_wrap(~marker, scale = "free")
 ```
 
 
