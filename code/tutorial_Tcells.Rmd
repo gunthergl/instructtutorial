@@ -1072,14 +1072,32 @@ We now want to actually understand what are these clusters we found. For this, w
 ```{r heatmapClusters, fig.height=5, fig.width=5}
 
 transformed_scaled_data %>%
+    # Keep "CD8+" cells from "acute" disease phase
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
+    # Keep only the columns defined by sel_markers_Tcells _and_ Rpheno
     select(sel_markers_Tcells, Rpheno) %>%
+    # group by Rpheno-clusters
     group_by(Rpheno) %>%
-    summarise_at(vars(sel_markers_Tcells), funs(mean(., na.rm = TRUE))) %>%
+    # Summarise_at "summarises" all rows (per group!) using the functions defined in list()
+    # "~mean(...)" is a so-called lambda function (anonymous)
+    # In essence: Calculate the mean _per marker_ inside each cluster (because group_by)
+    summarise_at(vars(sel_markers_Tcells), list(~ mean(., na.rm = TRUE))) %>%
+    # Make the table from wide to long format
+    # The previous column names go into the new column "marker"
+    # The previous column's _values_ go into the new column "marker"
+    # And this should be applied to all columns EXCEPT Rpheno (the "-" tells that)
     pivot_longer(names_to = "markers", values_to = "avg_zscore", -Rpheno) %>%
+    # Modify the column "markers" into being a factor with a specified order of levels
+    # (the reverse order from sel_markers_Tcells)
     mutate(markers = factor(markers, levels = rev(sel_markers_Tcells))) %>%
+    # Start plot:
+    #   - x-axis:       Cluster
+    #   - y-axis:       The marker
+    #   - fill color:   The just calculated average score
     ggplot(aes(x = Rpheno, y = markers, fill = avg_zscore)) +
+    # Make a heatmap
     geom_tile() +
+    # Replace the default color scale
     scale_fill_gradient2(low = "blue", mid = "white", high = "red", limits = c(-3.5, 3.5))
 ```
 
@@ -1087,14 +1105,32 @@ transformed_scaled_data %>%
 
 ```{r heatmapClusters_fs, fig.height=5, fig.width=5}
 transformed_scaled_data %>%
+    # Keep "CD8+" cells from "acute" disease phase
     filter(Tcellcompartment == "CD8+" & Disease.phase == "acute") %>%
+    # Keep only the columns defined by sel_markers_Tcells _and_ flowsom
     select(sel_markers_Tcells, flowsom) %>%
+    # group by flowsom-clusters
     group_by(flowsom) %>%
+    # Summarise_at "summarises" all rows (per group!) using the functions defined in list()
+    # "~mean(...)" is a so-called lambda function (anonymous)
+    # In essence: Calculate the mean _per marker_ inside each cluster (because group_by)
     summarise_at(vars(sel_markers_Tcells), funs(mean(., na.rm = TRUE))) %>%
+    # Make the table from wide to long format
+    # The previous column names go into the new column "marker"
+    # The previous column's _values_ go into the new column "marker"
+    # And this should be applied to all columns EXCEPT flowsom (the "-" tells that)
     pivot_longer(names_to = "markers", values_to = "avg_zscore", -flowsom) %>%
+    # Modify the column "markers" into being a factor with a specified order of levels
+    # (the reverse order from sel_markers_Tcells)
     mutate(markers = factor(markers, levels = rev(sel_markers_Tcells))) %>%
+    # Start plot:
+    #   - x-axis:       Cluster
+    #   - y-axis:       The marker
+    #   - fill color:   The just calculated average score
     ggplot(aes(x = flowsom, y = markers, fill = avg_zscore)) +
+    # Make a heatmap
     geom_tile() +
+    # Replace the default color scale
     scale_fill_gradient2(low = "blue", mid = "white", high = "red", limits = c(-3.5, 3.5))
 ```
 
@@ -1108,32 +1144,58 @@ With the library "pheatmap" we can additionally group the clusters (dendogram) a
 
 
 data_heatmap <- transformed_scaled_data %>%
+    # Keep "CD8+" cells from "acute" disease phase
     filter(Tcellcompartment == "CD8+" & Disease.phase == "acute") %>%
+    # Keep only the columns defined by sel_markers_Tcells _and_ Rpheno
     select(sel_markers_Tcells, Rpheno) %>%
+    # group by Rpheno-clusters
     group_by(Rpheno) %>%
+    # Summarise_at "summarises" all rows (per group!) using the functions defined in list()
+    # "~mean(...)" is a so-called lambda function (anonymous)
+    # In essence: Calculate the mean _per marker_ inside each cluster (because group_by)
     summarise_at(vars(sel_markers_Tcells), funs(mean(., na.rm = TRUE))) %>%
+    # tibbles usually do not have row-names, but some (usually classical) functions
+    # make use of the rownames
+    # Therefore, let's make the Rpheno-column the rownames!
     column_to_rownames("Rpheno")
 
-annotation_rows <- data.frame(marker_category = c(
-    rep("Differentiation", 2),
-    rep("Co-stimulation", 4),
-    rep("Co-inhibition", 4),
-    rep("Activation", 7),
-    rep("Chemokine receptor", 4),
-    rep("Others", 9)
-))
+# Create a data frame for the marker categories
+annotation_rows <- data.frame(
+    marker_category = c(
+        rep("Differentiation", 2),
+        rep("Co-stimulation", 4),
+        rep("Co-inhibition", 4),
+        rep("Activation", 7),
+        rep("Chemokine receptor", 4),
+        rep("Others", 9)
+    )
+)
 
+# The sel_markers_Tcells should be the rownames of the annotations
 rownames(annotation_rows) <- sel_markers_Tcells
 
 data_heatmap %>%
+    # t() transposes data_heatmap
+    # apart from that it automatically converts the tibble into a matrix
     t() %>%
     pheatmap(
-        cluster_rows = F,
-        cluster_cols = T,
+        # Do not cluster the rows when plotting
+        cluster_rows = FALSE,
+        # Do cluster the columns when plotting
+        cluster_cols = TRUE,
+        # Add the annotation per row
         annotation_row = annotation_rows,
-        annotation_names_row = F,
+        # Do not show the annotation_row column name
+        annotation_names_row = FALSE,
+        # vector of row indices that show where to put gaps into heatmap. Used only if the rows are not clustered. See cutree_row to see how to introduce gaps to clustered rows.
         gaps_row = c(2, 6, 10, 17, 21),
+        # a sequence of numbers that covers the range of values in mat and
+        # is one element longer than color vector.
+        # Used for mapping values to colors.
         breaks = seq(-3.5, 3.5, length.out = 100),
+        # For every value in "breaks", generate a corresponding color value with colorRampPalette
+        # This then goes
+        #   blue (minimum) -> white (midpoint) -> red (maximum)
         color = colorRampPalette(c("blue", "white", "red"))(100)
     )
 ```
@@ -1143,12 +1205,22 @@ data_heatmap %>%
 ```{r heatmapClusters_pheatmap_fs, fig.height=5, fig.width=5}
 
 data_heatmap <- transformed_scaled_data %>%
+    # Keep "CD8+" cells from "acute" disease phase
     filter(Tcellcompartment == "CD8+" & Disease.phase == "acute") %>%
+    # Keep only the columns defined by sel_markers_Tcells _and_ flowsom
     select(sel_markers_Tcells, flowsom) %>%
+    # group by flowsom-clusters
     group_by(flowsom) %>%
+    # Summarise_at "summarises" all rows (per group!) using the functions defined in list()
+    # "~mean(...)" is a so-called lambda function (anonymous)
+    # In essence: Calculate the mean _per marker_ inside each cluster (because group_by)
     summarise_at(vars(sel_markers_Tcells), funs(mean(., na.rm = TRUE))) %>%
+    # tibbles usually do not have row-names, but some (usually classical) functions
+    # make use of the rownames
+    # Therefore, let's make the Rpheno-column the rownames!
     column_to_rownames("flowsom")
 
+# Create a data frame for the marker categories
 annotation_rows <- data.frame(marker_category = c(
     rep("Differentiation", 2),
     rep("Co-stimulation", 4),
@@ -1158,17 +1230,31 @@ annotation_rows <- data.frame(marker_category = c(
     rep("Others", 9)
 ))
 
+# The sel_markers_Tcells should be the rownames of the annotations
 rownames(annotation_rows) <- sel_markers_Tcells
 
 data_heatmap %>%
+    # t() transposes data_heatmap
+    # apart from that it automatically converts the tibble into a matrix
     t() %>%
     pheatmap(
-        cluster_rows = F,
-        cluster_cols = T,
+        # Do not cluster the rows when plotting
+        cluster_rows = FALSE,
+        # Do cluster the columns when plotting
+        cluster_cols = TRUE,
+        # Add the annotation per row
         annotation_row = annotation_rows,
-        annotation_names_row = F,
+        # Do not show the annotation_row column name
+        annotation_names_row = FALSE,
+        # vector of row indices that show where to put gaps into heatmap. Used only if the rows are not clustered. See cutree_row to see how to introduce gaps to clustered rows.
         gaps_row = c(2, 6, 10, 17, 21),
+        # a sequence of numbers that covers the range of values in mat and
+        # is one element longer than color vector.
+        # Used for mapping values to colors.
         breaks = seq(-3.5, 3.5, length.out = 100),
+        # For every value in "breaks", generate a corresponding color value with colorRampPalette
+        # This then goes
+        #   blue (minimum) -> white (midpoint) -> red (maximum)
         color = colorRampPalette(c("blue", "white", "red"))(100)
     )
 ```
@@ -1181,21 +1267,57 @@ How much percentage of cells from RPhenograph cluster X where classified in Flow
 ```{r}
 
 data_heatmap <- transformed_scaled_data %>%
+    # Keep "CD8+" cells from "acute" disease phase
     filter(Tcellcompartment == "CD8+" & Disease.phase == "acute") %>%
+    # count for each combination of
+    #   Rpheno:     Cluster from Rphenograph
+    #   flowsom:    Cluster from flowsom
+    # How many cells there are
+    # Count saves that in a new column "n"
     count(Rpheno, flowsom) %>%
+    # When using the function count(), if a cluster is absent in a donor, it will not be counted as zero.
+    # So we complete the count table by filling the missing clusters with a 0.
     tidyr::complete(Rpheno, flowsom, fill = list(n = 0)) %>%
+    # group by Rpheno-clusters
     group_by(Rpheno) %>%
+    # due to the grouping, sum(n) gets the number of cells in each Rpheno-cluster
     mutate(total_Rpheno = sum(n)) %>%
+    # Remove the grouping
     ungroup() %>%
+    # Get the percentage of cells (per row) in total_Rpheno
+    # After total_Rpheno was calculated per Rpheno-cluster this results in the percentage
+    # of cells of each flowSOM cluster being in the respective Rpheno-cluster
     mutate(perc = n / total_Rpheno * 100) %>%
+    # # A tibble: 100 x 5
+    #    Rpheno flowsom     n total_Rpheno    perc
+    #    <fct>  <fct>   <int>        <int>   <dbl>
+    #  1 1      1           1         2958  0.0338
+    #  2 1      2         112         2958  3.79
+    #  3 1      3        2648         2958 89.5
+
+    # Select only the columns Rpheno, flowsom, perc
     select(Rpheno, flowsom, perc) %>%
+    #    Rpheno flowsom    perc
+    #    <fct>  <fct>     <dbl>
+    #  1 1      1        0.0338
+    #  2 1      2        3.79
+    #  3 1      3       89.5
+
+    # Now generate a matrix-like visualization by moving the Rpheno-column into separate columns
+    # based on the Rpheno-value
     pivot_wider(names_from = Rpheno, values_from = "perc") %>%
+    # Move the flowsom column to the rownames.
     column_to_rownames("flowsom")
 
-
-pheatmap(data_heatmap,
-    cluster_cols = T, cluster_rows = T,
+pheatmap(
+    data_heatmap,
+    # Do cluster the rows when plotting
+    cluster_rows = TRUE,
+    # Do cluster the columns when plotting
+    cluster_cols = TRUE,
+    # Create custom labels for the rows
     labels_row = paste0(rownames(data_heatmap), "_flowsom"),
+    # Create custom labels for the columns
     labels_col = paste0(rownames(data_heatmap), "_rpheno")
 )
 ```
@@ -1212,19 +1334,36 @@ Finally, we can calculate the abundance of each cluster in each sample and check
 
 
 ```{r defineIDs}
+
 selected_ids <- transformed_scaled_data %>%
+    # Get only cells from the acute disease phase
     filter(Disease.phase == "acute") %>%
+    # count for each combination of
+    #   Individuals:              Patient id (there are potentially multiple samples per patient)
+    #   id:                       Sample id
+    #   Group:                    "HC"   "CV19" "HBV"  "HIV"  "FLI"
+    #   sev_merge:                Which severity it is (sev_merge = mild+moderate and severe+critical merged)
+    #   Days.post.symptom.onset:  Time of measurement after symptom onset
+    # How many cells there are
+    # Count saves that in a new column "n"
     count(Individuals, id, Group, sev_merge, Days.post.symptom.onset) %>%
+    # Remove the "n" column
     select(-n) %>%
+    # Group by Individual
     group_by(Individuals) %>%
+    # Inside each Individual, create a new column "n_samples"
+    # which always starts from 1 and goes up to the number of samples of that individual (which is the number of rows in that group)
     mutate(n_samples = 1:n()) %>%
+    # Select the id where the Days.post.symptom.onset is the minimum
     mutate(select_id = ifelse(n_samples == 1, TRUE,
         ifelse(min(as.numeric(Days.post.symptom.onset)) == as.numeric(Days.post.symptom.onset),
             TRUE,
             FALSE
         )
     )) %>%
+    # Get only the rows where select_id column is TRUE
     filter(select_id) %>%
+    # Get the ids
     pull(id)
 ```
 
@@ -1236,29 +1375,52 @@ We can visualize the abundance of each cluster per donor as boxplots per severit
 ```{r boxplot_clust_abundance, fig.height=10, fig.width=10}
 
 transformed_scaled_data %>%
+    # Keep all samples (id) which are in the selected_ids AND in the Tcellcompartment CD8+
     filter(id %in% selected_ids, Tcellcompartment == "CD8+") %>%
+    # count for each combination of
+    #   id:                 Sample id
+    #   sev_merge:          Which severity it is (sev_merge = mild+moderate and severe+critical merged)
+    #   Tcellcompartment:   We selected only CD8+ but
+    #   Rpheno:             Cluster from Rphenograph
+    # How many cells there are
+    # Count saves that in a new column "n"
     count(id, sev_merge, Tcellcompartment, Rpheno) %>%
+    # Group by sample ID and Tcellcompartment
     group_by(id, Tcellcompartment) %>%
+    # Get the percentage of rows per group (so... per sample)
     mutate(perc = n / sum(n) * 100) %>%
+    # Remove grouping
     ungroup() %>%
     # When using the function count(), if a cluster is absent in a donor, it will not be counted as zero.
     # So we complete the count table by filling the missing clusters with a 0.
     tidyr::complete(id, Rpheno, fill = list(n = 0, perc = 0)) %>%
-    ungroup() %>%
-    group_by(Rpheno) %>%
-    fill(Tcellcompartment, .direction = "downup") %>%
-    ungroup() %>%
+    # tidyr::complete did not fill Tcellcompartment, therefore fill it manually
+    # 1. Remove all NA (missing values) from Tcellcompartment: Tcellcompartment[!is.na(Tcellcompartment)]
+    # 2. Get the unique values (should be only 1!)
+    # 3. Set all Tcellcompartment values to this unique value
+    mutate(Tcellcompartment = unique(Tcellcompartment[!is.na(Tcellcompartment)])) %>%
+    # Group per sample
     group_by(id) %>%
-    fill(sev_merge, .direction = "downup") %>%
+    # after we grouped per sample, each sample has its own sev_merge value for all clusters!
+    mutate(sev_merge = unique(sev_merge[!is.na(sev_merge)])) %>%
+    # Remove grouping
     ungroup() %>%
-    mutate(perc = ifelse(is.na(perc), 0, perc)) %>%
-    filter(!is.na(Tcellcompartment)) %>%
+    # Plot:
+    #   x-axis:     sev_merge
+    #   y-axis:     percentage of cells in the cluster
+    #   fill color: sev_merge
     ggplot(aes(x = sev_merge, y = perc, fill = sev_merge)) +
+    # Make boxplots
     geom_boxplot() +
+    # Add the values as points
     geom_jitter() +
+    # Split the previous plot into each separate cluster
     facet_wrap(~Rpheno, scale = "free") +
+    # Previously we defined the coloring for the severity stages, here we apply it.
     scale_fill_manual(values = color_severity) +
+    # Remove the x-axis text
     theme(axis.text.x = element_blank()) +
+    # Set a title
     ggtitle("RPhenograph cluster abundance")
 ```
 
@@ -1266,29 +1428,51 @@ transformed_scaled_data %>%
 
 ```{r boxplot_clust_flow_abundance, fig.height=10, fig.width=10}
 transformed_scaled_data %>%
+    # Keep all samples (id) which are in the selected_ids AND in the Tcellcompartment CD8+
     filter(id %in% selected_ids, Tcellcompartment == "CD8+") %>%
+    # count for each combination of
+    #   id:                 Sample id
+    #   sev_merge:          Which severity it is (sev_merge = mild+moderate and severe+critical merged)
+    #   Tcellcompartment:   We selected only CD8+ but
+    #   flowsom:             Cluster from flowsom
+    # How many cells there are
+    # Count saves that in a new column "n"
     count(id, sev_merge, Tcellcompartment, flowsom) %>%
+    # Group by sample ID and Tcellcompartment
     group_by(id, Tcellcompartment) %>%
+    # Get the percentage of rows per group (so... per sample)
     mutate(perc = n / sum(n) * 100) %>%
+    # Remove grouping
     ungroup() %>%
     # When using the function count(), if a cluster is absent in a donor, it will not be counted as zero.
     # So we complete the count table by filling the missing clusters with a 0.
     tidyr::complete(id, flowsom, fill = list(n = 0, perc = 0)) %>%
-    ungroup() %>%
-    group_by(flowsom) %>%
-    fill(Tcellcompartment, .direction = "downup") %>%
-    ungroup() %>%
+    # tidyr::complete did not fill Tcellcompartment, therefore fill it manually
+    # 1. Remove all NA (missing values) from Tcellcompartment: Tcellcompartment[!is.na(Tcellcompartment)]
+    # 2. Get the unique values (should be only 1!)
+    # 3. Set all Tcellcompartment values to this unique value
+    mutate(Tcellcompartment = unique(Tcellcompartment[!is.na(Tcellcompartment)])) %>%
+    # Group per sample
     group_by(id) %>%
-    fill(sev_merge, .direction = "downup") %>%
-    ungroup() %>%
-    mutate(perc = ifelse(is.na(perc), 0, perc)) %>%
-    filter(!is.na(Tcellcompartment)) %>%
+    # after we grouped per sample, each sample has its own sev_merge value for all clusters!
+    mutate(sev_merge = unique(sev_merge[!is.na(sev_merge)])) %>%
+    # Remove grouping
+    # Plot:
+    #   x-axis:     sev_merge
+    #   y-axis:     percentage of cells in the cluster
+    #   fill color: sev_merge
     ggplot(aes(x = sev_merge, y = perc, fill = sev_merge)) +
+    # Make boxplots
     geom_boxplot() +
+    # Add the values as points
     geom_jitter() +
+    # Split the previous plot into each separate cluster
     facet_wrap(~flowsom, scale = "free") +
+    # Previously we defined the coloring for the severity stages, here we apply it.
     scale_fill_manual(values = color_severity) +
+    # Remove the x-axis text
     theme(axis.text.x = element_blank()) +
+    # Set a title
     ggtitle("FlowSom cluster abundance")
 ```
 
@@ -1330,9 +1514,3 @@ Following questions should be touched upon:
     - Are pou planning to change to R for certain steps in your analysis?
     - What would be necessary to change to R? More training, more time to get familiar with, etc.?
     - Do you see advantages of R compared to your usual analysis-suite?
-
-
-
-
-
-
