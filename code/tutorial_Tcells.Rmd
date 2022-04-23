@@ -72,9 +72,10 @@ pacman::p_load("ComplexHeatmap", install = TRUE)
 pacman::p_load("devtools", install = TRUE)
 # Additionally, you might need "Rtools"
 pacman::p_load_gh("JinmiaoChenLab/Rphenograph", install = TRUE)
-pacman::p_load_gh("JinmiaoChenLab/cytofkit", install = TRUE) # To solve..
+pacman::p_load_gh("JinmiaoChenLab/cytofkit", install = TRUE)
 
-prioritize(dplyr) # Must be tested
+prioritize(dplyr)
+count <- dplyr::count
 
 theme_set(theme_classic())
 ```
@@ -1514,3 +1515,8 @@ Following questions should be touched upon:
     - Are pou planning to change to R for certain steps in your analysis?
     - What would be necessary to change to R? More training, more time to get familiar with, etc.?
     - Do you see advantages of R compared to your usual analysis-suite?
+
+```{r }
+print("Done")
+print(session_info())
+```
