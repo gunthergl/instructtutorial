@@ -72,7 +72,7 @@ pacman::p_load("ComplexHeatmap", install = TRUE)
 pacman::p_load("devtools", install = TRUE)
 # Additionally, you might need "Rtools"
 pacman::p_load_gh("JinmiaoChenLab/Rphenograph", install = TRUE)
-pacman::p_load_gh("JinmiaoChenLab/cytofkit", install = TRUE)  # To solve..
+pacman::p_load_gh("JinmiaoChenLab/cytofkit", install = TRUE) # To solve..
 
 prioritize(dplyr) # Must be tested
 
@@ -122,7 +122,7 @@ print(data_norm_sub[1:5, ])
 colnames(data_norm_sub)
 ```
 
-Not all features of the cell are actual cell parameters. We want to subset the values to only these parameters. Therefore, create a vector with the name of each measured protein (what we call "the CyTOF panel").
+Not all features of the cell are actual cell markers. We want to subset the values to only these markers. Therefore, create a vector with the name of each measured protein (what we call "the CyTOF panel").
 
 ```{r panelandcolors, results="hide"}
 panel <- colnames(data_norm_sub)[15:54]
@@ -341,7 +341,7 @@ data_norm_sub_trans %>%
 
 ### Manual gating of T cell comparment (CD4+, CD8+, TCRgd+)
 
-We are actually interested in finding T cell communities but in each main T cell compartment (CD4+, CD8+ and TCRgd+). For this, we manually gate T cells based on CD8 and TCRgd parameters.  
+We are actually interested in finding T cell communities but in each main T cell compartment (CD4+, CD8+ and TCRgd+). For this, we manually gate T cells based on CD8 and TCRgd markers.  
 
 Gates were defined per CyTOF run. Due to time restrictions, we are providing the gates in asinh-scale. Eg.: If the cell has an asinh-signal of TCRgd lower or equal than the threshold, and a asinh-signal of CD8 lower or equal than the corresponding CD8 threshold, then the cell is CD4+.  
 
@@ -424,9 +424,9 @@ data_Tcell %>%
 
 https://pair-code.github.io/understanding-umap/
 
-We now compute the UMAPs for each T cell compartment across all samples (acute and convalescent). We use all markers, except the parameters we used for gating. We also exclude IgD, IgM, CD21, and CD14.  
+We now compute the UMAPs for each T cell compartment across all samples (acute and convalescent). We use all markers, except the markers we used for gating. We also exclude IgD, IgM, CD21, and CD14.  
 
-We define a vector "sel_markers_Tcells" removing all parameters we do not want to include for the calculation of the UMAP.
+We define a vector "sel_markers_Tcells" removing all markers we do not want to include for the calculation of the UMAP.
 
 ```{r sel_markers_Tcells}
 # panel %in% c("text1", "text2", ...)
@@ -672,6 +672,9 @@ p3 <- transformed_scaled_data %>%
     theme(plot.title = element_text(hjust = 0.5))
 
 
+# Until now we did CALCULATE the plots, but not actually plot them, that is the idea of ggplot.
+# First BUILD the plots, only plot them at the very end.
+# With plot_grid(..., nrow=1) we define that all sub-plots (p1, p2, p3) are plotted in one row.
 plot_grid(p1, p2, p3, nrow = 1)
 ```
 
@@ -681,6 +684,7 @@ plot_grid(p1, p2, p3, nrow = 1)
 ```{r UMAP_markers, fig.height=7, fig.width=21}
 
 p1 <- transformed_scaled_data %>%
+    # Keep "CD4+" cells
     filter(Tcellcompartment == "CD4+") %>%
     # Subsample 30000 cells
     sample_n(30000) %>%
@@ -703,6 +707,7 @@ p1 <- transformed_scaled_data %>%
 
 
 p2 <- transformed_scaled_data %>%
+    # Keep "CD8+" cells
     filter(Tcellcompartment == "CD8+") %>%
     # Subsample 30000 cells
     sample_n(30000) %>%
@@ -725,6 +730,7 @@ p2 <- transformed_scaled_data %>%
 
 
 p3 <- transformed_scaled_data %>%
+    # Keep "TCRgd+" cells
     filter(Tcellcompartment == "TCRgd+") %>%
     # Plot the two just calculated UMAPs, color according to HLADR values
     ggplot(aes(x = UMAP1, y = UMAP2, color = HLADR)) +
@@ -742,6 +748,10 @@ p3 <- transformed_scaled_data %>%
     # Mixing the colors appropriately according to the value of the given column in aes()
     scale_color_gradient2(low = "blue", mid = "grey", high = "red", midpoint = 0)
 
+
+# Until now we did CALCULATE the plots, but not actually plot them, that is the idea of ggplot.
+# First BUILD the plots, only plot them at the very end.
+# With plot_grid(..., nrow=1) we define that all sub-plots (p1, p2, p3) are plotted in one row.
 plot_grid(p1, p2, p3, nrow = 1)
 ```
 
@@ -756,6 +766,7 @@ We now perform unsupervised clustering analysis on samples from control, FLI, HI
 
 ```{r distMarkersClust, fig.height=10, fig.width=10}
 transformed_scaled_data %>%
+    # Keep "CD8+" cells from "acute" disease phase
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
     # Keep only the columns defined by sel_markers_Tcells
     select(sel_markers_Tcells) %>%
@@ -789,9 +800,11 @@ start_time <- Sys.time()
 
 
 clust_cd8_rpheno <- transformed_scaled_data %>%
+    # Keep "CD8+" cells from "acute" disease phase
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
     # Keep only the columns defined by sel_markers_Tcells
     select(sel_markers_Tcells) %>%
+    # Start clustering with Rphenograph
     # k: number of nearest neighbours (default:30)
     Rphenograph(k = 30)
 
@@ -816,17 +829,35 @@ cat(paste("\n", time_elapsed, "minutes passed"))
 After running the clustering algorithm, we add a column "Rpheno" in the data table with the cluster label for each cell:
 
 ```{r add_clust_info}
-clust_ids <- transformed_scaled_data %>%
+cell_ids <- transformed_scaled_data %>%
+    # Keep "CD8+" cells from "acute" disease phase
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
     # Extract the column "cellid" from the dataframe as a usual vector
     # This column uniquely identifies each cell
     pull(cellid)
 
-clust_cd8_rpheno <- tibble(cellid = clust_ids, Rpheno = as.character(igraph::membership(clust_cd8_rpheno)))
+# Make a new tibble (table) with two columns:
+#   "cellid": The (unique!) cell ids
+#   "Rpheno": The cluster assignment for each of the cells
+clust_cd8_rpheno_assignment <- tibble(
+    cellid = cell_ids,
+    Rpheno = as.character(igraph::membership(clust_cd8_rpheno))
+)
 
-transformed_scaled_data <- transformed_scaled_data %>% left_join(clust_cd8_rpheno)
+# left_join here joins automatically by the column "cellid"
+# So the column "cellid" is taken as identifier and the transformed_scaled_data is extended by the
+# column "Rpheno", so the cluster assignment by Rpheno
+transformed_scaled_data <- transformed_scaled_data %>% left_join(clust_cd8_rpheno_assignment)
 
-transformed_scaled_data <- transformed_scaled_data %>% mutate(Rpheno = factor(Rpheno, levels = str_sort(unique(Rpheno), numeric = TRUE)))
+# If you are worried that some now joined cluster-values are NA:
+# Mind that transformed_scaled_data holds _all_ cells but we only clustered on the CD8+
+# cells from acute samples!
+
+transformed_scaled_data <- transformed_scaled_data %>%
+    # We will use Rpheno later in plots and want to have sorted cluster numbers.
+    # ggplot can only do that when the column is a factor
+    # If the column is a factor, the ordering of values is according to its levels
+    mutate(Rpheno = factor(Rpheno, levels = str_sort(unique(Rpheno), numeric = TRUE)))
 ```
 
 #### FlowSOM
@@ -834,31 +865,76 @@ transformed_scaled_data <- transformed_scaled_data %>% mutate(Rpheno = factor(Rp
 **IMPORTANT!** In FlowSOM we define the number of clusters.
 
 ```{r runflowsom, results="hide"}
+# Sys.time() returns the current time on your PC
 start_time <- Sys.time()
 
 clust_cd8_flowsom <- transformed_scaled_data %>%
+    # Keep "CD8+" cells from "acute" disease phase
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
+    # Keep only the columns defined by sel_markers_Tcells
     select(sel_markers_Tcells) %>%
-    cytof_cluster(xdata = ., method = "FlowSOM", FlowSOM_k = 10)
+    # Start clustering with FlowSOM (from the cytofkit package)
+    cytofkit::cytof_cluster(
+        # %>% usually "pipes" the data into the FIRST argument of the called function
+        # but here we want to leave the first argument ("ydata") free, so we have to define
+        # it explicitely.
+        # To then "access" the piped data you can use the dot (.)
+        xdata = .,
+        # Specify the used method, here FlowSOM
+        method = "FlowSOM",
+        # Number of clusters for meta clustering in FlowSOM.
+        FlowSOM_k = 10
+    )
 
+# Sys.time() returns the current time on your PC
 end_time <- Sys.time()
 ```
 
 ```{r time_elapsed_fs}
-time_elapsed <- round(as.numeric(gsub("Time difference of ", "", difftime(end_time, start_time, units = "mins"))), 2)
+# with difftime you can calculate the difference between two times received by Sys.time()
+# You can also supply the unit you want to see (here "minutes")
+#
+# as.numeric() then makes a PC-usable number from that
+# and round(..., 2) rounds to the second place after comma
+time_elapsed <- round(as.numeric(difftime(end_time, start_time, units = "mins")), 2)
+
+# paste() combines multiple strings together in R
+# "\n" is a special string to make a new line when
+# cat() is used to actually print to console
 print(paste("\n", time_elapsed, "minutes passed"))
 ```
 
 After running the clustering algorithm, we add a column "flowsom" in the data table with the cluster label for each cell:
 
 ```{r add_clust_info_fs}
-clust_ids <- transformed_scaled_data %>%
+cell_ids <- transformed_scaled_data %>%
+    # Keep "CD8+" cells from "acute" disease phase
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
+    # Extract the column "cellid" from the dataframe as a usual vector
+    # This column uniquely identifies each cell
     pull(cellid)
 
-clust_cd8_flowsom <- tibble(cellid = clust_ids, flowsom = as.character(clust_cd8_flowsom))
-transformed_scaled_data <- transformed_scaled_data %>% left_join(clust_cd8_flowsom)
-transformed_scaled_data <- transformed_scaled_data %>% mutate(flowsom = factor(flowsom, levels = str_sort(unique(flowsom), numeric = TRUE)))
+# Make a new tibble (table) with two columns:
+#   "cellid": The (unique!) cell ids
+#   "flowsom": The cluster assignment for each of the cells
+clust_cd8_flowsom_assignment <- tibble(
+    cellid = cell_ids,
+    flowsom = as.character(clust_cd8_flowsom)
+)
+
+# If you are worried that some now joined cluster-values are NA:
+# Mind that transformed_scaled_data holds _all_ cells but we only clustered on the CD8+
+# cells from acute samples!
+
+# left_join here joins automatically by the column "cellid"
+# So the column "cellid" is taken as identifier and the transformed_scaled_data is extended by the
+# column "Rpheno", so the cluster assignment by Rpheno
+transformed_scaled_data <- transformed_scaled_data %>% left_join(clust_cd8_flowsom_assignment)
+transformed_scaled_data <- transformed_scaled_data %>%
+    # We will use Rpheno later in plots and want to have sorted cluster numbers.
+    # ggplot can only do that when the column is a factor
+    # If the column is a factor, the ordering of values is according to its levels
+    mutate(flowsom = factor(flowsom, levels = str_sort(unique(flowsom), numeric = TRUE)))
 ```
 
 ### Cluster size {.tabset}
@@ -869,11 +945,19 @@ We now visualize the number of cells in each cluster:
 
 ```{r clustSize, fig.height=5, fig.width=10}
 transformed_scaled_data %>%
+    # Keep "CD8+" cells from "acute" disease phase
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
+    # Count the number of rows (cells) per value in the Rpheno (cluster-id) column
     count(Rpheno) %>%
+    # Plot
+    #   - Rpheno column (cluster-id) on the x-axis
+    #   - Number of cells per Rpheno on y-axis
+    #   - Use the number of cells as label
     ggplot(aes(x = Rpheno, y = n, label = n)) +
+    # Make a bar chart
     geom_col(position = "dodge") +
     theme_classic() +
+    # Add labels on each bar
     geom_label()
 ```
 
@@ -881,11 +965,19 @@ transformed_scaled_data %>%
 
 ```{r clustSize_fs, fig.height=5, fig.width=10}
 transformed_scaled_data %>%
+    # Keep "CD8+" cells from "acute" disease phase
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
+    # Count the number of rows (cells) per value in the flowsom (cluster-id) column
     count(flowsom) %>%
+    # Plot
+    #   - Rpheno column (cluster-id) on the x-axis
+    #   - Number of cells per Rpheno on y-axis
+    #   - Use the number of cells as label
     ggplot(aes(x = flowsom, y = n, label = n)) +
+    # Make a bar chart
     geom_col(position = "dodge") +
     theme_classic() +
+    # Add labels on each bar
     geom_label()
 ```
 
@@ -897,12 +989,18 @@ And then plot the UMAP, this time coloured by cluster:
 
 ```{r UMAP_clusters_Rpheno, fig.height=5, fig.width=7}
 transformed_scaled_data %>%
+    # Keep "CD8+" cells from "acute" disease phase
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
+    # Plot the two just calculated UMAPs, color according to Rphenograph clusters
     ggplot(aes(x = UMAP1, y = UMAP2, color = Rpheno)) +
+    # Plot points with transparency and size defined
     geom_point(alpha = 0.5, size = 1) +
+    # Bigger and not transparent dots for the legend
     guides(colour = guide_legend(ncol = 1, override.aes = list(size = 3, alpha = 1))) +
     theme_classic() +
+    # Setting proper title
     ggtitle("CD8+ T cells") +
+    # Center the plot title
     theme(plot.title = element_text(hjust = 0.5))
 ```
 
@@ -910,12 +1008,18 @@ transformed_scaled_data %>%
 
 ```{r UMAP_clusters_fs, fig.height=5, fig.width=7}
 transformed_scaled_data %>%
+    # Keep "CD8+" cells from "acute" disease phase
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
+    # Plot the two just calculated UMAPs, color according to flowsom clusters
     ggplot(aes(x = UMAP1, y = UMAP2, color = flowsom)) +
+    # Plot points with transparency and size defined
     geom_point(alpha = 0.5, size = 1) +
+    # Bigger and not transparent dots for the legend
     guides(colour = guide_legend(ncol = 1, override.aes = list(size = 3, alpha = 1))) +
     theme_classic() +
+    # Setting proper title
     ggtitle("CD8+ T cells") +
+    # Center the plot title
     theme(plot.title = element_text(hjust = 0.5))
 ```
 
@@ -927,11 +1031,22 @@ Let's look at the marker distribution per cluster:
 
 ```{r distMarkersClust_rpheno, fig.height=10, fig.width=10}
 transformed_scaled_data %>%
+    # Keep "CD8+" cells from "acute" disease phase
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
+    # Keep only the columns defined by sel_markers_Tcells _and_ Rpheno
     select(sel_markers_Tcells, Rpheno) %>%
+    # Make the table from wide to long format
+    # The previous column names go into the new column "marker"
+    # The previous column's _values_ go into the new column "marker"
+    # And this should be applied to the columns defined by sel_markers_Tcells
     pivot_longer(names_to = "marker", values_to = "value", sel_markers_Tcells) %>%
-    ggplot(aes(x = value, fill = Rpheno, y = Rpheno)) +
-    geom_density_ridges() +
+    # x-axis:       Marker values
+    # y-axis:       Cluster ids
+    # fill-color:   Cluster ids
+    ggplot(aes(x = value, y = Rpheno, fill = Rpheno)) +
+    # geom_density_ridges plots a density plot for each value defined by y
+    ggridges::geom_density_ridges() +
+    # Make the same kind of multi-density-plot for each marker!
     facet_wrap(~marker, scale = "free") +
     theme_classic()
 ```
@@ -940,11 +1055,22 @@ transformed_scaled_data %>%
 
 ```{r distMarkersClust_flowsom, fig.height=10, fig.width=10}
 transformed_scaled_data %>%
+    # Keep "CD8+" cells from "acute" disease phase
     filter(Tcellcompartment == "CD8+", Disease.phase == "acute") %>%
+    # Keep only the columns defined by sel_markers_Tcells _and_ flowsom
     select(sel_markers_Tcells, flowsom) %>%
+    # Make the table from wide to long format
+    # The previous column names go into the new column "marker"
+    # The previous column's _values_ go into the new column "marker"
+    # And this should be applied to the columns defined by sel_markers_Tcells
     pivot_longer(names_to = "marker", values_to = "value", sel_markers_Tcells) %>%
-    ggplot(aes(x = value, fill = flowsom, y = flowsom)) +
+    # x-axis:       Marker values
+    # y-axis:       Cluster ids
+    # fill-color:   Cluster ids
+    ggplot(aes(x = value, y = flowsom, fill = flowsom)) +
+    # geom_density_ridges plots a density plot for each value defined by y
     geom_density_ridges() +
+    # Make the same kind of multi-density-plot for each marker!
     facet_wrap(~marker, scale = "free") +
     theme_classic()
 ```
