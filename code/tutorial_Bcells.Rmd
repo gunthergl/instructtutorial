@@ -73,7 +73,7 @@ We start reading the data table "data_norm_sub.csv" with the function _read.csv(
 	+ batch corrected (normalization using BatchAdjust method, linearly scales signal distributions to similar ranges using percentiles)
 
 ```{r read, results="hide"}
-data_norm_sub <- read.csv("~/Documents/INsTRuCT_workshop/data_norm_sub5.csv")
+data_norm_sub <- read.csv("/mnt/c/Users/woode/OneDrive - uni-duesseldorf.de/Uni/DOCTORATE/Teaching/instruct_workshop/tutorial/instructtutorial/data/data_norm_sub5.csv")
 ```
 
 What are the columns? What are the rows?
@@ -223,7 +223,9 @@ We define a vector "sel_markers_Bcells" with the selected markers to be used for
 
 
 ```{r sel_markers_Bcells}
-sel_markers_Bcells <- panel[!panel %in% c("CD45","CD3", "CD19","CD15","CD8", "TCRgd" ,"CD14")]
+#sel_markers_Bcells <- panel[!panel %in% c("CD45","CD3", "CD19","CD15","CD8", "TCRgd" ,"CD14")]
+
+sel_markers_Bcells <- c('IgD','IgM','CD10','CD21','CD27','CD38','CXCR3','CXCR5','CCR6','CRTH2','HLADR','CD69','Ki67','CD11c','CD25','CD95','CD137','CD226','ICOS','PD1','Lag3','TIGIT','CD96','CD123','KLRG1','KLRF1','CD16','CD28','CD62L','CD45RO','CD56','CD34')
 
 ```
 
@@ -373,7 +375,7 @@ end_time <- Sys.time()
 
 ```{r time_elapsed_Rpheno}
 time_elapsed <- round(as.numeric(gsub('Time difference of ', '', difftime(end_time, start_time, units = "mins"))), 2)
-print(paste('\n', time_elapsed, 'minutes passed'))
+print(paste(time_elapsed, 'minutes passed'))
 ```
 
 After running the clustering algorithm, we add a column "Rpheno" in the data table with the cluster label for each cell:
@@ -409,7 +411,7 @@ end_time <- Sys.time()
 
 ```{r time_elapsed_fs}
 time_elapsed <- round(as.numeric(gsub('Time difference of ', '', difftime(end_time, start_time, units = "mins"))), 2)
-print(paste('\n', time_elapsed, 'minutes passed'))
+print(paste(time_elapsed, 'minutes passed'))
 ```
 
 After running the clustering algorithm, we add a column "flowsom" in the data table with the cluster label for each cell:
@@ -554,7 +556,7 @@ data_Bcells %>%
  group_by(flowsom) %>%
  summarise_at(vars(sel_markers_Bcells), funs(mean(., na.rm=TRUE))) %>% 
  pivot_longer(names_to = "markers", values_to = "avg_zscore", - flowsom) %>% 
- mutate(markers = factor(markers,levels = sel_markers_Bcells)) %>% 
+ mutate(markers = factor(markers,levels = rev(sel_markers_Bcells))) %>% 
  ggplot(aes(x = flowsom, y = markers, fill = avg_zscore)) + 
  geom_tile() + 
  scale_fill_gradient2(low = "blue", mid = "white", high = "red", limits = c(-3,7.5))
@@ -577,12 +579,10 @@ data_heatmap <- data_Bcells %>%
  summarise_at(vars(sel_markers_Bcells), funs(mean(., na.rm=TRUE))) %>%
  column_to_rownames("Rpheno")
 
-annotation_rows <- data.frame( marker_category = c(rep("Differentiation",2), 
-                               rep("Co-stimulation",4), 
-                               rep("Co-inhibition",4),
-                               rep("Activation",7),
-                               rep("Chemokine receptor",4),
-                               rep("Others",12)))
+annotation_rows <- data.frame( marker_category = c(rep("Differentiation",6),
+                                                   rep("Chemokine receptor",4),
+                                                   rep("Activation",3),
+                                                   rep("Miscellaneous",19)))
 
 rownames(annotation_rows) <- sel_markers_Bcells
 
@@ -591,7 +591,7 @@ data_heatmap %>% t() %>%
            cluster_cols = T, 
            annotation_row = annotation_rows, 
            annotation_names_row = F, 
-           gaps_row = c(2, 6, 10, 17, 21), 
+           gaps_row = c(6, 10, 13), 
            breaks = seq(-4, 4, length.out = 100),
            color = colorRampPalette(c("blue", "white", "red"))(100)
 )
@@ -612,12 +612,10 @@ data_heatmap <- data_Bcells %>%
  summarise_at(vars(sel_markers_Bcells), funs(mean(., na.rm=TRUE))) %>%
  column_to_rownames("flowsom")
 
-annotation_rows <- data.frame( marker_category = c(rep("Differentiation",2), 
-                               rep("Co-stimulation",4), 
-                               rep("Co-inhibition",4),
-                               rep("Activation",7),
-                               rep("Chemokine receptor",4),
-                               rep("Others",12)))
+annotation_rows <- data.frame( marker_category = c(rep("Differentiation",6),
+                                                   rep("Chemokine receptor",4),
+                                                   rep("Activation",3),
+                                                   rep("Miscellaneous",19)))
 
 rownames(annotation_rows) <- sel_markers_Bcells
 
@@ -626,7 +624,7 @@ data_heatmap %>% t() %>%
            cluster_cols = T, 
            annotation_row = annotation_rows, 
            annotation_names_row = F, 
-           gaps_row = c(2, 6, 10, 17, 21), 
+           gaps_row = c(6, 10, 13), 
            breaks = seq(-4, 4, length.out = 100),
            color = colorRampPalette(c("blue", "white", "red"))(100)
 )
