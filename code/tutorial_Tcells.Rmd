@@ -178,7 +178,9 @@ data_norm_sub_trans <- data_norm_sub %>%
 data_norm_sub_trans %>%
     # take only 20% of the data such that the plots are generated faster
     sample_frac(0.2) %>%
-    # ?Todo what?
+    # Pivot: All columns defined by "panel" will go into two columns.
+    # The values go into the new column "value"
+    # The names of the columns go into the new column "marker"
     pivot_longer(names_to = "marker", values_to = "value", panel) %>%
     # Start plotting, define "value" as x-axis
     ggplot(aes(x = value)) +
@@ -314,7 +316,7 @@ data_norm_sub_trans %>%
     # Make a boxplot per fill-value. That happens automatically.
     # Alpha sets the color-density
     geom_boxplot(position = position_dodge(1), alpha = 0.7) +
-    # ?Todo: What happens here
+    # Overlay dotplot to the barplots
     geom_dotplot(
         binaxis = "y", stackdir = "center",
         position = position_dodge(1), alpha = 0.7
@@ -378,7 +380,7 @@ data_Tcell %>%
     ggplot(aes(x = CD8, y = TCRgd)) +
     # Use points, color them according to Tcellcompartment with certain size and alpha.
     geom_point(aes(color = Tcellcompartment), size = 0.5, alpha = 0.5) +
-    # ? Todo: What is happening here?
+    # Override legend
     guides(colour = guide_legend(override.aes = list(size = 5)))
 ```
 
