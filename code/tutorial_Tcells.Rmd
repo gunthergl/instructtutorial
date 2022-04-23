@@ -72,7 +72,7 @@ pacman::p_load("ComplexHeatmap", install = TRUE)
 pacman::p_load("devtools", install = TRUE)
 # Additionally, you might need "Rtools"
 pacman::p_load_gh("JinmiaoChenLab/Rphenograph", install = TRUE)
-# pacman::p_load_gh("JinmiaoChenLab/cytofkit", install = TRUE)  # To solve..
+pacman::p_load_gh("JinmiaoChenLab/cytofkit", install = TRUE)  # To solve..
 
 prioritize(dplyr) # Must be tested
 
