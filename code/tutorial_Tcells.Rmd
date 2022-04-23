@@ -402,7 +402,7 @@ data_Tcell %>%
     # Plot the percentage (y-axis) of each Tcellcompartment (x-axis) colored by Tcellcompartment
     # and label it with the percentage, rounded to 2 decimal points
     ggplot(aes(x = Tcellcompartment, y = perc, fill = Tcellcompartment, label = round(perc, 2))) +
-    # We use geom_col to plot the number of cells per compartment as column bars. Dodge means the bars are not stacked, but separated bars. 
+    # We use geom_col to plot the number of cells per compartment as column bars. Dodge means the bars are not stacked, but separated bars.
     geom_col(position = "dodge") +
     # We defined WHAT the labels should contain, now we actually plot them
     geom_label() +
@@ -453,7 +453,7 @@ UMAP_TCRgd <- transformed_scaled_data %>%
     # Filter all cells which are TCRgd+
     filter(Tcellcompartment == "TCRgd+") %>%
     # Select only the sel_markers_Tcells columns
-    select(sel_markers_Tcells) %>% 
+    select(sel_markers_Tcells) %>%
     # Calculate UMAP with defined hyperparameters
     uwot::umap(
         # The size of local neighborhood
@@ -476,8 +476,8 @@ UMAP_TCRgd <- transformed_scaled_data %>%
 UMAP_CD4 <- transformed_scaled_data %>%
     # Filter all cells which are CD4+
     filter(Tcellcompartment == "CD4+") %>%
-   # Select only the sel_markers_Tcells columns
-    select(sel_markers_Tcells) %>% 
+    # Select only the sel_markers_Tcells columns
+    select(sel_markers_Tcells) %>%
     # Calculate UMAP with defined hyperparameters
     uwot::umap(
         n_neighbors = 30,
@@ -491,8 +491,8 @@ UMAP_CD4 <- transformed_scaled_data %>%
 UMAP_CD8 <- transformed_scaled_data_Tcell %>%
     # Filter all cells which are CD8+
     filter(Tcellcompartment == "CD8+") %>%
-   # Select only the sel_markers_Tcells columns
-    select(sel_markers_Tcells) %>% 
+    # Select only the sel_markers_Tcells columns
+    select(sel_markers_Tcells) %>%
     # Calculate UMAP with defined hyperparameters
     uwot::umap(
         n_neighbors = 30,
@@ -808,7 +808,7 @@ end_time <- Sys.time()
 time_elapsed <- round(as.numeric(difftime(end_time, start_time, units = "mins")), 2)
 
 # paste() combines multiple strings together in R
-# "\n" is a special string to make a new line when 
+# "\n" is a special string to make a new line when
 # cat() is used to actually print to console
 cat(paste("\n", time_elapsed, "minutes passed"))
 ```
