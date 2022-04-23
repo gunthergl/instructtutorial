@@ -488,7 +488,7 @@ UMAP_CD4 <- transformed_scaled_data %>%
         fast_sgd = TRUE
     )
 
-UMAP_CD8 <- transformed_scaled_data_Tcell %>%
+UMAP_CD8 <- transformed_scaled_data %>%
     # Filter all cells which are CD8+
     filter(Tcellcompartment == "CD8+") %>%
     # Select only the sel_markers_Tcells columns
@@ -1195,7 +1195,7 @@ transformed_scaled_data %>%
 
 Make a presentation/talk (up to 20 minutes long, 10 minutes discussion) about the analysis pipeline that you familiarized yourself with. Mention what cell type you looked at, and present the results with your interpretation given the context of the experimental design.  
 
-Doesn’t have to be a proper PowerPoint, you can just open the R Markdown and go through it.  
+Doesn't have to be a proper PowerPoint, you can just open the R Markdown and go through it.  
 
 Following questions should be touched upon:  
 
