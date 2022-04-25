@@ -356,7 +356,12 @@ We define a vector "sel_markers_Bcells" with the selected markers to be used for
 #   inverts this logical vector, so FALSE if value is contained in the right, TRUE if not.
 # panel[!panel %in% c("CD45", "CD3", "CD19", "CD15", "CD8", "TCRgd", "CD14")]
 #   selects the TRUE values in "panel" according to the just specified vector.
-sel_markers_Bcells <- panel[!panel %in% c("CD45", "CD3", "CD19", "CD15", "CD8", "TCRgd", "CD14")]
+# sel_markers_Bcells <- panel[!panel %in% c("CD45", "CD3", "CD19", "CD15", "CD8", "TCRgd", "CD14")]
+sel_markers_Bcells <- c(
+    "IgD", "IgM", "CD10", "CD21", "CD27", "CD38", "CXCR3", "CXCR5", "CCR6", "CRTH2", "HLADR",
+    "CD69", "Ki67", "CD11c", "CD25", "CD95", "CD137", "CD226", "ICOS", "PD1", "Lag3", "TIGIT",
+    "CD96", "CD123", "KLRG1", "KLRF1", "CD16", "CD28", "CD62L", "CD45RO", "CD56", "CD34"
+)
 ```
 
 Before calculating the UMAP, is important we transform our data (`asinh`) and apply z-score standardization (function `scale`). Why?
@@ -831,7 +836,7 @@ data_Bcells %>%
     # Summarise_at "summarises" all rows (per group!) using the functions defined in list()
     # "~mean(...)" is a so-called lambda function (anonymous)
     # In essence: Calculate the mean _per marker_ inside each cluster (because group_by)
-    summarise_at(vars(sel_markers_Bcells), list(~mean(., na.rm = TRUE))) %>%
+    summarise_at(vars(sel_markers_Bcells), list(~ mean(., na.rm = TRUE))) %>%
     # Make the table from wide to long format
     # The previous column names go into the new column "marker"
     # The previous column's _values_ go into the new column "marker"
@@ -839,7 +844,7 @@ data_Bcells %>%
     pivot_longer(names_to = "markers", values_to = "avg_zscore", -Rpheno) %>%
     # Modify the column "markers" into being a factor with a specified order of levels
     # (the reverse order from sel_markers_Bcells)
-    mutate(markers = factor(markers, levels = rev(sel_markers_Bcells))) %>%
+    mutate(markers = factor(markers, levels = sel_markers_Bcells)) %>%
     # Start plot:
     #   - x-axis:       Cluster
     #   - y-axis:       The marker
@@ -864,7 +869,7 @@ data_Bcells %>%
     # Summarise_at "summarises" all rows (per group!) using the functions defined in list()
     # "~mean(...)" is a so-called lambda function (anonymous)
     # In essence: Calculate the mean _per marker_ inside each cluster (because group_by)
-    summarise_at(vars(sel_markers_Bcells), list(~mean(., na.rm = TRUE))) %>%
+    summarise_at(vars(sel_markers_Bcells), list(~ mean(., na.rm = TRUE))) %>%
     # Make the table from wide to long format
     # The previous column names go into the new column "marker"
     # The previous column's _values_ go into the new column "marker"
@@ -902,21 +907,21 @@ data_heatmap <- data_Bcells %>%
     # Summarise_at "summarises" all rows (per group!) using the functions defined in list()
     # "~mean(...)" is a so-called lambda function (anonymous)
     # In essence: Calculate the mean _per marker_ inside each cluster (because group_by)
-    summarise_at(vars(sel_markers_Bcells), list(~mean(., na.rm = TRUE))) %>%
+    summarise_at(vars(sel_markers_Bcells), list(~ mean(., na.rm = TRUE))) %>%
     # tibbles usually do not have row-names, but some (usually classical) functions
     # make use of the rownames
     # Therefore, let's make the Rpheno-column the rownames!
     column_to_rownames("Rpheno")
 
 # Create a data frame for the marker categories
-annotation_rows <- data.frame(marker_category = c(
-    rep("Differentiation", 2),
-    rep("Co-stimulation", 4),
-    rep("Co-inhibition", 4),
-    rep("Activation", 7),
-    rep("Chemokine receptor", 4),
-    rep("Others", 12)
-))
+annotation_rows <- data.frame(
+    marker_category = c(
+        rep("Differentiation", 6),
+        rep("Chemokine receptor", 4),
+        rep("Activation", 3),
+        rep("Miscellaneous", 19)
+    )
+)
 
 # The sel_markers_Tcells should be the rownames of the annotations
 rownames(annotation_rows) <- sel_markers_Bcells
@@ -935,7 +940,7 @@ data_heatmap %>%
         # Do not show the annotation_row column name
         annotation_names_row = FALSE,
         # vector of row indices that show where to put gaps into heatmap. Used only if the rows are not clustered. See cutree_row to see how to introduce gaps to clustered rows.
-        gaps_row = c(2, 6, 10, 17, 21),
+        gaps_row = c(6, 10, 13),
         # a sequence of numbers that covers the range of values in mat and
         # is one element longer than color vector.
         # Used for mapping values to colors.
@@ -960,21 +965,21 @@ data_heatmap <- data_Bcells %>%
     # Summarise_at "summarises" all rows (per group!) using the functions defined in list()
     # "~mean(...)" is a so-called lambda function (anonymous)
     # In essence: Calculate the mean _per marker_ inside each cluster (because group_by)
-    summarise_at(vars(sel_markers_Bcells), list(~mean(., na.rm = TRUE))) %>%
+    summarise_at(vars(sel_markers_Bcells), list(~ mean(., na.rm = TRUE))) %>%
     # tibbles usually do not have row-names, but some (usually classical) functions
     # make use of the rownames
     # Therefore, let's make the flowsom-column the rownames!
     column_to_rownames("flowsom")
 
 # Create a data frame for the marker categories
-annotation_rows <- data.frame(marker_category = c(
-    rep("Differentiation", 2),
-    rep("Co-stimulation", 4),
-    rep("Co-inhibition", 4),
-    rep("Activation", 7),
-    rep("Chemokine receptor", 4),
-    rep("Others", 12)
-))
+annotation_rows <- data.frame(
+    marker_category = c(
+        rep("Differentiation", 6),
+        rep("Chemokine receptor", 4),
+        rep("Activation", 3),
+        rep("Miscellaneous", 19)
+    )
+)
 
 # The sel_markers_Tcells should be the rownames of the annotations
 rownames(annotation_rows) <- sel_markers_Bcells
@@ -993,7 +998,7 @@ data_heatmap %>%
         # Do not show the annotation_row column name
         annotation_names_row = FALSE,
         # vector of row indices that show where to put gaps into heatmap. Used only if the rows are not clustered. See cutree_row to see how to introduce gaps to clustered rows.
-        gaps_row = c(2, 6, 10, 17, 21),
+        gaps_row = c(6, 10, 13),
         # a sequence of numbers that covers the range of values in mat and
         # is one element longer than color vector.
         # Used for mapping values to colors.
