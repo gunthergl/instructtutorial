@@ -906,7 +906,7 @@ data_mono %>%
     # Summarise_at "summarises" all rows (per group!) using the functions defined in list()
     # "~mean(...)" is a so-called lambda function (anonymous)
     # In essence: Calculate the mean _per marker_ inside each cluster (because group_by)
-    summarise_at(vars(sel_markers_mono), list(~mean(., na.rm = TRUE))) %>%
+    summarise_at(vars(sel_markers_mono), list(~ mean(., na.rm = TRUE))) %>%
     # Make the table from wide to long format
     # The previous column names go into the new column "marker"
     # The previous column's _values_ go into the new column "marker"
@@ -939,7 +939,7 @@ data_mono %>%
     # Summarise_at "summarises" all rows (per group!) using the functions defined in list()
     # "~mean(...)" is a so-called lambda function (anonymous)
     # In essence: Calculate the mean _per marker_ inside each cluster (because group_by)
-    summarise_at(vars(sel_markers_mono), list(~mean(., na.rm = TRUE))) %>%
+    summarise_at(vars(sel_markers_mono), list(~ mean(., na.rm = TRUE))) %>%
     # Make the table from wide to long format
     # The previous column names go into the new column "marker"
     # The previous column's _values_ go into the new column "marker"
@@ -977,7 +977,7 @@ data_heatmap <- data_mono %>%
     # Summarise_at "summarises" all rows (per group!) using the functions defined in list()
     # "~mean(...)" is a so-called lambda function (anonymous)
     # In essence: Calculate the mean _per marker_ inside each cluster (because group_by)
-    summarise_at(vars(sel_markers_mono), list(~mean(., na.rm = TRUE))) %>%
+    summarise_at(vars(sel_markers_mono), list(~ mean(., na.rm = TRUE))) %>%
     # tibbles usually do not have row-names, but some (usually classical) functions
     # make use of the rownames
     # Therefore, let's make the Rpheno-column the rownames!
@@ -1036,7 +1036,7 @@ data_heatmap <- data_mono %>%
     # Summarise_at "summarises" all rows (per group!) using the functions defined in list()
     # "~mean(...)" is a so-called lambda function (anonymous)
     # In essence: Calculate the mean _per marker_ inside each cluster (because group_by)
-    summarise_at(vars(sel_markers_mono), list(~mean(., na.rm = TRUE))) %>%
+    summarise_at(vars(sel_markers_mono), list(~ mean(., na.rm = TRUE))) %>%
     # tibbles usually do not have row-names, but some (usually classical) functions
     # make use of the rownames
     # Therefore, let's make the flowsom-column the rownames!
@@ -1127,7 +1127,7 @@ pheatmap(
     # Create custom labels for the rows
     labels_row = paste0(rownames(data_heatmap), "_flowsom"),
     # Create custom labels for the columns
-    labels_col = paste0(rownames(data_heatmap), "_rpheno")
+    labels_col = paste0(colnames(data_heatmap), "_rpheno")
 )
 ```
 
@@ -1161,9 +1161,9 @@ selected_ids <- data_mono %>%
     group_by(Individuals) %>%
     # Inside each Individual, create a new column "n_samples"
     # which always starts from 1 and goes up to the number of samples of that individual (which is the number of rows in that group)
-    mutate(n_samples = 1:n()) %>%
+    dplyr::mutate(n_samples = 1:dplyr::n()) %>%
     # Select the id where the Days.post.symptom.onset is the minimum
-    mutate(select_id = ifelse(n_samples == 1, TRUE,
+    dplyr::mutate(select_id = ifelse(n_samples == 1, TRUE,
         ifelse(min(as.numeric(Days.post.symptom.onset)) == as.numeric(Days.post.symptom.onset),
             TRUE,
             FALSE
@@ -1204,7 +1204,7 @@ data_mono %>%
     # Group per sample
     group_by(id) %>%
     # after we grouped per sample, each sample has its own sev_merge value for all clusters!
-    mutate(sev_merge = unique(sev_merge[!is.na(sev_merge)])) %>%
+    fill(sev_merge, .direction = "downup") %>%
     # Remove grouping
     ungroup() %>%
     # Plot:
@@ -1251,7 +1251,7 @@ data_mono %>%
     # Group per sample
     group_by(id) %>%
     # after we grouped per sample, each sample has its own sev_merge value for all clusters!
-    mutate(sev_merge = unique(sev_merge[!is.na(sev_merge)])) %>%
+    fill(sev_merge, .direction = "downup") %>%
     # Remove grouping
     ungroup() %>%
     # Plot:
