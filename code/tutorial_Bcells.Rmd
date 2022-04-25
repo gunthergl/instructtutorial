@@ -368,13 +368,11 @@ Before calculating the UMAP, is important we transform our data (`asinh`) and ap
 
 ```{r computeUMAP_m}
 
-transformed_scaled_data <- data_norm_sub_trans %>%
+data_Bcells <- data_norm_sub_trans %>%
+    # Filter all cells which are Bcells
+    filter(Bcells) %>%
     # Then apply scale() on all columns defined by sel_markers_Bcells
     mutate_at(vars(sel_markers_Bcells), scale)
-
-data_Bcells <- transformed_scaled_data %>%
-    # Filter all cells which are Bcells
-    filter(Bcells)
 
 UMAP_Bcells <- data_Bcells %>%
     # Select only the sel_markers_Bcells columns

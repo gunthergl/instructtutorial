@@ -433,13 +433,11 @@ Before calculating the UMAP, is important we transform our data (`asinh`) and ap
 
 ```{r computeUMAP_m}
 
-transformed_scaled_data <- data_norm_sub_trans %>%
+data_mono <- data_norm_sub_trans %>%
+    # Filter all cells which are Monocytes
+    filter(Monocyte) %>%
     # Then apply scale() on all columns defined by sel_markers_mono
     mutate_at(vars(sel_markers_mono), scale)
-
-data_mono <- transformed_scaled_data %>%
-    # Filter all cells which are Monocytes
-    filter(Monocyte)
 
 UMAP_mono <- data_mono %>%
     # Select only the sel_markers_mono columns
