@@ -906,7 +906,7 @@ data_mono %>%
     # Summarise_at "summarises" all rows (per group!) using the functions defined in list()
     # "~mean(...)" is a so-called lambda function (anonymous)
     # In essence: Calculate the mean _per marker_ inside each cluster (because group_by)
-    summarise_at(vars(sel_markers_mono), list(mean(., na.rm = TRUE))) %>%
+    summarise_at(vars(sel_markers_mono), list(~mean(., na.rm = TRUE))) %>%
     # Make the table from wide to long format
     # The previous column names go into the new column "marker"
     # The previous column's _values_ go into the new column "marker"
@@ -939,7 +939,7 @@ data_mono %>%
     # Summarise_at "summarises" all rows (per group!) using the functions defined in list()
     # "~mean(...)" is a so-called lambda function (anonymous)
     # In essence: Calculate the mean _per marker_ inside each cluster (because group_by)
-    summarise_at(vars(sel_markers_mono), list(mean(., na.rm = TRUE))) %>%
+    summarise_at(vars(sel_markers_mono), list(~mean(., na.rm = TRUE))) %>%
     # Make the table from wide to long format
     # The previous column names go into the new column "marker"
     # The previous column's _values_ go into the new column "marker"
@@ -977,7 +977,7 @@ data_heatmap <- data_mono %>%
     # Summarise_at "summarises" all rows (per group!) using the functions defined in list()
     # "~mean(...)" is a so-called lambda function (anonymous)
     # In essence: Calculate the mean _per marker_ inside each cluster (because group_by)
-    summarise_at(vars(sel_markers_mono), list(mean(., na.rm = TRUE))) %>%
+    summarise_at(vars(sel_markers_mono), list(~mean(., na.rm = TRUE))) %>%
     # tibbles usually do not have row-names, but some (usually classical) functions
     # make use of the rownames
     # Therefore, let's make the Rpheno-column the rownames!
@@ -1036,7 +1036,7 @@ data_heatmap <- data_mono %>%
     # Summarise_at "summarises" all rows (per group!) using the functions defined in list()
     # "~mean(...)" is a so-called lambda function (anonymous)
     # In essence: Calculate the mean _per marker_ inside each cluster (because group_by)
-    summarise_at(vars(sel_markers_mono), list(mean(., na.rm = TRUE))) %>%
+    summarise_at(vars(sel_markers_mono), list(~mean(., na.rm = TRUE))) %>%
     # tibbles usually do not have row-names, but some (usually classical) functions
     # make use of the rownames
     # Therefore, let's make the flowsom-column the rownames!
