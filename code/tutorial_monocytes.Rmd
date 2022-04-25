@@ -1,5 +1,5 @@
 ---
-title: "INsTRuCT Tutorial 2022 (T cells)"
+title: "INsTRuCT Tutorial 2022 (Monocytes)"
 author: "R. Astaburuaga-García, L. Petrov, G. Glehr"
 output: 
   html_document:
