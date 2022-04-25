@@ -614,7 +614,7 @@ p1 <- transformed_scaled_data %>%
     # Inside Disease.phase are the values "acute" and "convalescent"
     # With scale_color_manual we can explicitly define which color they should get.
     scale_color_manual(values = c("acute" = "red", "convalescent" = "black"), name = "") +
-    # Seting a proper title!
+    # Setting a proper title!
     ggtitle("CD4+ T cells") +
     # legend.position="none" removes the legend
     # plot.title = element_text(hjust...) adjusts the horizontal adjustment (placing) of the title.
@@ -633,7 +633,7 @@ p2 <- transformed_scaled_data %>%
     # Inside Disease.phase are the values "acute" and "convalescent"
     # With scale_color_manual we can explicitly define which color they should get.
     scale_color_manual(values = c("acute" = "red", "convalescent" = "black"), name = "") +
-    # Seting a proper title!
+    # Setting a proper title!
     ggtitle("CD8+ T cells") +
     # legend.position="none" removes the legend
     # plot.title = element_text(hjust...) adjusts the horizontal adjustment (placing) of the title.
@@ -652,7 +652,7 @@ p3 <- transformed_scaled_data %>%
     # Inside Disease.phase are the values "acute" and "convalescent"
     # With scale_color_manual we can explicitly define which color they should get.
     scale_color_manual(values = c("acute" = "red", "convalescent" = "black"), name = "") +
-    # Seting a proper title!
+    # Setting a proper title!
     ggtitle("TCRgd+ T cells") +
     # The last plot SHOULD have a legend.
     # Note that technically this legend is only legit for p3 not for p2 or p1 because the color
@@ -912,10 +912,10 @@ clust_cd8_flowsom_assignment <- tibble(
 
 # left_join here joins automatically by the column "cellid"
 # So the column "cellid" is taken as identifier and the transformed_scaled_data is extended by the
-# column "Rpheno", so the cluster assignment by Rpheno
+# column "flowsom", so the cluster assignment by flowsom
 transformed_scaled_data <- transformed_scaled_data %>% left_join(clust_cd8_flowsom_assignment)
 transformed_scaled_data <- transformed_scaled_data %>%
-    # We will use Rpheno later in plots and want to have sorted cluster numbers.
+    # We will use flowsom later in plots and want to have sorted cluster numbers.
     # ggplot can only do that when the column is a factor
     # If the column is a factor, the ordering of values is according to its levels
     mutate(flowsom = factor(flowsom, levels = str_sort(unique(flowsom), numeric = TRUE)))
@@ -953,8 +953,8 @@ transformed_scaled_data %>%
     # Count the number of rows (cells) per value in the flowsom (cluster-id) column
     count(flowsom) %>%
     # Plot
-    #   - Rpheno column (cluster-id) on the x-axis
-    #   - Number of cells per Rpheno on y-axis
+    #   - flowsom column (cluster-id) on the x-axis
+    #   - Number of cells per flowsom on y-axis
     #   - Use the number of cells as label
     ggplot(aes(x = flowsom, y = n, label = n)) +
     # Make a bar chart
@@ -1060,7 +1060,7 @@ transformed_scaled_data %>%
 
 ## Cluster annotation {.tabset}
 
-We now want to actually understand what are these clusters we found. For this, we can visualize the average expression of each marker in each cluster with a heatmap.** Remember to do the corresponding transformation of the intensity values.** 
+We now want to actually understand what are these clusters we found. For this, we can visualize the average expression of each marker in each cluster with a heatmap.
 
 ### Heatmap (ggplot) {.tabset}
 
@@ -1214,7 +1214,7 @@ data_heatmap <- transformed_scaled_data %>%
     summarise_at(vars(sel_markers_Tcells), funs(mean(., na.rm = TRUE))) %>%
     # tibbles usually do not have row-names, but some (usually classical) functions
     # make use of the rownames
-    # Therefore, let's make the Rpheno-column the rownames!
+    # Therefore, let's make the flowsom-column the rownames!
     column_to_rownames("flowsom")
 
 # Create a data frame for the marker categories
@@ -1454,6 +1454,7 @@ transformed_scaled_data %>%
     # after we grouped per sample, each sample has its own sev_merge value for all clusters!
     mutate(sev_merge = unique(sev_merge[!is.na(sev_merge)])) %>%
     # Remove grouping
+    ungroup() %>%
     # Plot:
     #   x-axis:     sev_merge
     #   y-axis:     percentage of cells in the cluster
