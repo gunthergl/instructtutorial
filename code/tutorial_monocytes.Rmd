@@ -421,12 +421,7 @@ We define a vector "sel_markers_mono" with the selected markers to be used for t
 #   inverts this logical vector, so FALSE if value is contained in the right, TRUE if not.
 # panel[!panel %in% c("CD45", "CD3", "CD19", "CD15", "TCRgd", "CD21", "IgM", "IgD")]
 #   selects the TRUE values in "panel" according to the just specified vector.
-# sel_markers_mono <- panel[!panel %in% c("CD45", "CD3", "CD19", "CD15", "TCRgd", "CD21", "IgM", "IgD")]
-sel_markers_mono <- c(
-    "CD14", "CD16", "HLADR", "CD10", "CD69", "CD11c", "CD123", "CCR6", "CRTH2", "CXCR3", "CXCR5",
-    "CD38", "Ki67", "CD62L", "CD25", "CD226", "CD95", "ICOS", "PD1", "Lag3", "TIGIT", "CD96",
-    "CD56", "KLRG1", "KLRF1", "CD27", "CD28", "CD45RO", "CD137"
-)
+sel_markers_mono <- panel[!panel %in% c("CD45", "CD3", "CD19", "CD15", "TCRgd", "CD21", "IgM", "IgD")]
 ```
 
 Before calculating the UMAP, is important we transform our data (`asinh`) and apply z-score standardization (function `scale`). Why?
@@ -988,12 +983,16 @@ data_heatmap <- data_mono %>%
 
 annotation_rows <- data.frame(
     marker_category = c(
-        rep("Differentiation Mono", 5),
-        rep("Differentiation DC", 2),
+        "Contamination",
+        rep("Differentiation", 2),
+        rep("Co-stimulation", 4),
+        rep("Co-inhibition", 4),
+        rep("Activation", 7),
         rep("Chemokine receptor", 4),
-        rep("Miscellaneous", 18)
+        rep("Others", 10)
     )
 )
+
 
 # The sel_markers_mono should be the rownames of the annotations
 rownames(annotation_rows) <- sel_markers_mono
@@ -1012,7 +1011,7 @@ data_heatmap %>%
         # Do not show the annotation_row column name
         annotation_names_row = FALSE,
         # vector of row indices that show where to put gaps into heatmap. Used only if the rows are not clustered. See cutree_row to see how to introduce gaps to clustered rows.
-        gaps_row = c(5, 7, 11),
+        gaps_row = c(1,3, 7, 11, 18, 22), 
         # a sequence of numbers that covers the range of values in mat and
         # is one element longer than color vector.
         # Used for mapping values to colors.
@@ -1046,10 +1045,13 @@ data_heatmap <- data_mono %>%
 
 annotation_rows <- data.frame(
     marker_category = c(
-        rep("Differentiation Mono", 5),
-        rep("Differentiation DC", 2),
+        "Contamination",
+        rep("Differentiation", 2),
+        rep("Co-stimulation", 4),
+        rep("Co-inhibition", 4),
+        rep("Activation", 7),
         rep("Chemokine receptor", 4),
-        rep("Miscellaneous", 18)
+        rep("Others", 10)
     )
 )
 
@@ -1070,7 +1072,7 @@ data_heatmap %>%
         # Do not show the annotation_row column name
         annotation_names_row = FALSE,
         # vector of row indices that show where to put gaps into heatmap. Used only if the rows are not clustered. See cutree_row to see how to introduce gaps to clustered rows.
-        gaps_row = c(5, 7, 11),
+        gaps_row = c(1,3, 7, 11, 18, 22), 
         # a sequence of numbers that covers the range of values in mat and
         # is one element longer than color vector.
         # Used for mapping values to colors.
