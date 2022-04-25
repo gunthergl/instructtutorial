@@ -162,9 +162,7 @@ data_norm_sub %>%
     geom_density() +
     # facet_wrap splits the plots according to the specified column, here "marker"
     # scale="free" tells that the x-axis and y-axis are not the same for each plot
-    facet_wrap(~marker, scale = "free") +
-    # theme_classic() sets the look of the final plot
-    theme_classic()
+    facet_wrap(~marker, scale = "free")
 ```
 
 We notice that these are skewed distributions: Many small values, some very large values. Therefore, it makes more sense to look at these on a logarithmic scale:
@@ -188,9 +186,7 @@ data_norm_sub_trans %>%
     # Density plots, how are the values on the x-axis distributed
     geom_density() +
     # Split the plots according to the "marker" column, different axis
-    facet_wrap(~marker, scale = "free") +
-    # How the plot looks
-    theme_classic()
+    facet_wrap(~marker, scale = "free")
 ```
 
 

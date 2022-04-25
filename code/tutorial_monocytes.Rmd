@@ -1,5 +1,5 @@
 ---
-title: "INsTRuCT Tutorial 2022 (Monocytes)"
+title: "INsTRuCT Tutorial 2022 (T cells)"
 author: "R. Astaburuaga-García, L. Petrov, G. Glehr"
 output: 
   html_document:
@@ -13,8 +13,10 @@ editor_options:
 ---
 
 ```{r setup, set.seed(1234)}
-knitr::opts_chunk$set(fig.align='center', message=F, warning=F, cache=T,cache.lazy = F,
-                      class.source="fold-hide")
+knitr::opts_chunk$set(
+    fig.align = "center", message = F, warning = F, cache = T, cache.lazy = F,
+    class.source = "fold-hide"
+)
 ```
 
 
@@ -22,39 +24,67 @@ knitr::opts_chunk$set(fig.align='center', message=F, warning=F, cache=T,cache.la
 
 ## Load libraries
 
+If packages are already installed on your system, you could just use `library(tibble)`. Otherwise you have to install it first, here you have multiple options: 
+
+- Standard: `install.packages("insert_your_package_name")`
+- Automated: `pacman::p_load("insert_your_package_name")`
+This loads your package and installs it if not already present.
+
+Usually, the packages you install are retrieved from `CRAN`: https://cran.r-project.org/ but not all packages are hosted there. 
+Especially for bio-related packages, there is `Bioconductor`: https://bioconductor.org/ 
+
+To install packages from Bioconductor, you can either follow the instructions on the package site on Bioconductor (e.g. https://bioconductor.org/packages/release/bioc/html/ComplexHeatmap.html ) which includes installing the `BiocManager` package. 
+
+Also `pacman` _also_ searches Bioconductor, but _only_ if BiocManager is installed before!
+
+
+Some packages are neither on `CRAN` nor on `Bioconductor` but on `github`. `github` is a platform to versionize and distribute code. To install `github` packages, you can:
+
+- Standard: `devtools::install_github("JinmiaoChenLab/Rphenograph")`
+- Automated: `pacman::p_load_gh("JinmiaoChenLab/Rphenograph")`
+
+Additionally, you might need Rtools to build R packages: https://cran.r-project.org/bin/windows/Rtools/rtools40.html
+If you just installed rtools you will need to restart Rstudio.
+
+
 ```{r lib}
-library(tibble)
-library(tidyr)
-library(readr)
-library(stringr)
-library(ggplot2)
-library(cowplot)
-library(uwot)
-library(Rphenograph)
-library(pheatmap)
-library(cytofkit)
-library(needs)
-library(dplyr)
-library(knitr)
-library(ggridges)
-library(grDevices) # to change the color in pheatmap
+
+if (!require(pacman)) {
+    install.packages("pacman") # If not already installed
+}
+pacman::p_load("tidyverse", install = TRUE)
+pacman::p_load("cowplot", install = TRUE)
+pacman::p_load("uwot", install = TRUE)
+pacman::p_load("data.table", install = TRUE)
+pacman::p_load("pheatmap", install = TRUE) # Todo
+pacman::p_load("needs", install = TRUE)
+pacman::p_load("knitr", install = TRUE)
+pacman::p_load("ggridges", install = TRUE)
+pacman::p_load("grDevices", install = TRUE)
+
+# Install BiocManager such that pacman can then find ComplexHeatmap by its own
+pacman::p_load("BiocManager", install = TRUE)
+pacman::p_load("ComplexHeatmap", install = TRUE)
+
+
+# Github packages have to be dealt in a special way
+# However you install them, you _need_ the "devtools" package
+pacman::p_load("devtools", install = TRUE)
+# Additionally, you might need "Rtools"
+pacman::p_load_gh("JinmiaoChenLab/Rphenograph", install = TRUE)
+pacman::p_load_gh("JinmiaoChenLab/cytofkit", install = TRUE)
 
 prioritize(dplyr)
+count <- dplyr::count
 
 theme_set(theme_classic())
-
-# if(!require(devtools)){
-#   install.packages("devtools") # If not already installed
-# }
-# devtools::install_github("JinmiaoChenLab/Rphenograph")
 ```
 
 --- 
 
-
 ## Overview of the tutorial
 
-In this tutorial we will analyse a public data set ([Georg _et al._ 2021](https://www.cell.com/cell/pdf/S0092-8674(21)01562-2.pdf)) of single cell phopho-proteomics measured with Cytometry by Time of Flight (CyTOF). In this study, the authors performed CyTOF of whole blood samples from mild and severe COVID-19 patients during the acute and convalescent phase, and patients with other acute respiratory infections (Flu-like illness), as well as patients chronically infected by human immunodeficiency virus (HIV) or hepatitis B (HBV) and healthy controls. They analysed the T cell space and identified highly activated CD16+ T cells in severe COVID-19, which led the authors to hypothesise about the pathological role of these cytotoxic T cells. This hypothesis was then tested and confirmed with functional analyses, and found suitable mechanisms for their induction. In this tutorial you will learn how to perform such computational analysis either in T cells, B cells, or monocytes!
+In this tutorial we will analyse a public data set ([Georg _et al._ 2021](https://www.cell.com/cell/pdf/S0092-8674(21)01562-2.pdf)) of single cell phospho-proteomics measured with Cytometry by Time of Flight (CyTOF). In this study, the authors performed CyTOF of whole blood samples from mild and severe COVID-19 patients during the acute and convalescent phase, and patients with other acute respiratory infections (Flu-like illness), as well as patients chronically infected by human immunodeficiency virus (HIV) or hepatitis B (HBV) and healthy controls. They analysed the T cell space and identified highly activated CD16+ T cells in severe COVID-19, which led the authors to hypothesise about the pathological role of these cytotoxic T cells. This hypothesis was then tested and confirmed with functional analyses, and found suitable mechanisms for their induction. In this tutorial you will learn how to perform such computational analysis either in T cells, B cells, or monocytes!
 
 Due to time constrains, we will analyse 5% of the data set. We will start by manually pre-gating the immune cell type of interest, then we will visually explore the data by reducing the dimensionality and plotting a UMAP. After this, we will cluster the data to find discrete communities of cells, using two different algorithms for comparison. Then we will annotate/give names to these clusters by looking at the average protein expression in each community/cluster. Finally, we will calculate the abundance of each cluster per donor and identify COVID-19 or severe-specific clusters. 
 
@@ -62,10 +92,9 @@ Due to time constrains, we will analyse 5% of the data set. We will start by man
 
 --- 
 
-
 ## Read the data
 
-We start reading the data table "data_norm_sub.csv" with the function _read.csv()_. 
+We start reading the data table "data_norm_sub.csv" with the function `read.csv()`. 
 * The data has already been pre-processed
   + calibration beads excluded (gating on Ce140 Bead channel)
   + doublets and debris excluded (gating on DNA channels and Event_length)
@@ -73,40 +102,72 @@ We start reading the data table "data_norm_sub.csv" with the function _read.csv(
   + batch corrected (normalization using BatchAdjust method, linearly scales signal distributions to similar ranges using percentiles)
 
 ```{r read, results="hide"}
-data_norm_sub <- read.csv("~/Documents/INsTRuCT_workshop/data_norm_sub5.csv")
+# results='hide' does not print messages to the generated output file
+
+# Standard read.csv, works for most things, but fread is faster.
+# data_norm_sub <- read.csv("~/Documents/INsTRuCT_workshop/data_norm_sub5.csv")
+
+data_norm_sub_fread <- data.table::fread("../data/data_norm_sub5.csv")
+
+# fread is a special format, such that we have to convert it first into a usual data.frame
+data_norm_sub <- data.frame(data_norm_sub_fread)
 ```
 
 What are the columns? What are the rows?
 
 ```{r colnamesdata}
+# Show the first 5 rows and all columns --> Rows are cells, columns are features per cell
+print(data_norm_sub[1:5, ])
+
+# Then take a look at only the column names
 colnames(data_norm_sub)
 ```
 
-Create a vector with the name of each measured protein (what we call "the CyTOF panel").
+Not all features of the cell are actual cell markers. We want to subset the values to only these markers. Therefore, create a vector with the name of each measured protein (what we call "the CyTOF panel").
 
 ```{r panelandcolors, results="hide"}
 panel <- colnames(data_norm_sub)[15:54]
 
+# color_severity is a named vector which we will use later.
+# #xxxxxx is a html-coded color code.
 color_severity <- c(
-  "healthy" = "#0449FF",
-  "FLI" =  "#807F7F",
-  "HIV" = "#40007F",
-  "HBV" =  "magenta",
-  "mild/moderate" = "#FFB651",
-  "severe/critical" = "#F82000")
-
+    "healthy" = "#0449FF",
+    "FLI" = "#807F7F",
+    "HIV" = "#40007F",
+    "HBV" = "magenta",
+    "mild/moderate" = "#FFB651",
+    "severe/critical" = "#F82000"
+)
 ```
 
 Let's look at how the values of markers are distributed:
 
+
+In the CyTOF community, people commonly use the hyperbolic arcsine (asinh) transformation: 
+$$
+\rm asinh(x) = \ln(x + \sqrt{x^2+1})
+$$
+
+
 ```{r panel_linear, fig.height=10, fig.width=10}
-data_norm_sub %>% 
-    sample_frac(0.2) %>% 
-    pivot_longer(names_to = "marker",values_to = "value",panel) %>%
-    ggplot(aes(value)) +
-    geom_density() + facet_wrap(~marker, scale = "free") + 
-  theme_classic()
+data_norm_sub %>%
+    # take only 20% of the data such that the plots are generated faster
+    sample_frac(0.2) %>%
+    # Pivot: All columns defined by "panel" will go into two columns.
+    # The values go into the new column "value"
+    # The names of the columns go into the new column "marker"
+    pivot_longer(names_to = "marker", values_to = "value", panel) %>%
+    # start plotting, x-axis is the value
+    ggplot(aes(x = value)) +
+    # We want density plots, so how the values on the x-axis are distributed
+    geom_density() +
+    # facet_wrap splits the plots according to the specified column, here "marker"
+    # scale="free" tells that the x-axis and y-axis are not the same for each plot
+    facet_wrap(~marker, scale = "free") +
+    # theme_classic() sets the look of the final plot
+    theme_classic()
 ```
+
 
 We notice that these are skewed distributions: Many small values, some very large values. Therefore, it makes more sense to look at these on a logarithmic scale:
 
