@@ -142,7 +142,6 @@ color_severity <- c(
 
 Let's look at how the values of markers are distributed:
 
-
 In the CyTOF community, people commonly use the hyperbolic arcsine (asinh) transformation: 
 $$
 \rm asinh(x) = \ln(x + \sqrt{x^2+1})
@@ -163,29 +162,34 @@ data_norm_sub %>%
     geom_density() +
     # facet_wrap splits the plots according to the specified column, here "marker"
     # scale="free" tells that the x-axis and y-axis are not the same for each plot
-    facet_wrap(~marker, scale = "free") +
-    # theme_classic() sets the look of the final plot
-    theme_classic()
+    facet_wrap(~marker, scale = "free")
 ```
-
 
 We notice that these are skewed distributions: Many small values, some very large values. Therefore, it makes more sense to look at these on a logarithmic scale:
 
 
 ```{r panel_log, fig.height=10, fig.width=10}
-data_norm_sub %>% 
-    sample_frac(0.2) %>% 
-    pivot_longer(names_to = "marker",values_to = "value",panel) %>%
-    mutate(log_value = log(value+1)) %>% 
-    ggplot(aes(log_value)) +
-    geom_density() + facet_wrap(~marker, scale = "free")+ 
-    theme_classic()
+# Transform all columns defined by "panel" with asinh()
+data_norm_sub_trans <- data_norm_sub %>%
+    # Apply asinh() on all columns defined by panel
+    mutate_at(vars(panel), asinh)
+
+data_norm_sub_trans %>%
+    # take only 20% of the data such that the plots are generated faster
+    sample_frac(0.2) %>%
+    # Pivot: All columns defined by "panel" will go into two columns.
+    # The values go into the new column "value"
+    # The names of the columns go into the new column "marker"
+    pivot_longer(names_to = "marker", values_to = "value", panel) %>%
+    # Start plotting, define "value" as x-axis
+    ggplot(aes(x = value)) +
+    # Density plots, how are the values on the x-axis distributed
+    geom_density() +
+    # Split the plots according to the "marker" column, different axis
+    facet_wrap(~marker, scale = "free")
 ```
 
-In the CyTOF community, people commonly use the hypebolic arcsine (arcsinh) transformation: 
-$$
-\rm arsinh (x) = \ln(x + \sqrt{x^2+1})
-$$
+
 
 
 --- 
@@ -194,7 +198,7 @@ $$
 
 ## Pre-gating of monocytes
 
-Using _ggplot()_ and _geom_point()_, generate a scatter plot to decide the gates.  
+Using `ggplot()` and `geom_point()`, generate a scatter plot to decide the gates.  
 We visualize just 10% of the data.
 
 ### CD45+CD3-
