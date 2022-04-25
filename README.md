@@ -39,38 +39,31 @@ For that:
 2.  Create a new file (`File` -> `New File` -> `R Script`)
 3.  Copy the following code inside that freshly generated script: 
 	```r
-	if(!require(pacman)){
-		install.packages("pacman") # If not already installed
-	}
-	pacman::p_install("BiocManager", force=FALSE)
-	pacman::p_install("tidyverse", force=FALSE)
-	pacman::p_install("cowplot", force=FALSE)
-	pacman::p_install("needs", force=FALSE)
-	pacman::p_install("pheatmap", force=FALSE)
-	pacman::p_install("uwot", force=FALSE)
-	
-	
-	pacman::p_install("ComplexHeatmap", force=FALSE)
-	pacman::p_install("devtools", force=FALSE)
-	
-	devtools::install_github("JinmiaoChenLab/cytofkit")
-	devtools::install_github("JinmiaoChenLab/Rphenograph")
-	
-	
-	library(tibble)
-	library(tidyr)
-	library(readr)
-	library(stringr)
-	library(ggplot2)
-	library(dplyr)
-	library(cowplot)
-	library(uwot)
-	library(Rphenograph)
-	library(cytofkit)
-	library(ComplexHeatmap)
-	library(pheatmap)
-	# library(needs)
-	theme_set(theme_cowplot())
+        
+    if (!require(pacman)) {
+        install.packages("pacman") # If not already installed
+    }
+    pacman::p_load("tidyverse", install = TRUE)
+    pacman::p_load("cowplot", install = TRUE)
+    pacman::p_load("uwot", install = TRUE)
+    pacman::p_load("data.table", install = TRUE)
+    pacman::p_load("pheatmap", install = TRUE) # Todo
+    pacman::p_load("needs", install = TRUE)
+    pacman::p_load("knitr", install = TRUE)
+    pacman::p_load("ggridges", install = TRUE)
+    pacman::p_load("grDevices", install = TRUE)
+
+    # Install BiocManager such that pacman can then find ComplexHeatmap by its own
+    pacman::p_load("BiocManager", install = TRUE)
+    pacman::p_load("ComplexHeatmap", install = TRUE)
+
+
+    # Github packages have to be dealt in a special way
+    # However you install them, you _need_ the "devtools" package
+    pacman::p_load("devtools", install = TRUE)
+    # Additionally, you might need "Rtools"
+    pacman::p_load_gh("JinmiaoChenLab/Rphenograph", install = TRUE)
+    pacman::p_load_gh("JinmiaoChenLab/cytofkit", install = TRUE)
 	```
 4. Either run each line of the code (`Ctrl+Enter per line`) or all of the code at once (`Ctrl+Shift+s`)
 5. There will be some red messages, but there should be no warnings nor errors.
