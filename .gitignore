@@ -1,4 +1,5 @@
 /data/data_norm_sub5.csv
 .lintr
 .Rproj.user
-/code/tutorial_Tcells_*
+code/old/
+/code/tutorial_*
