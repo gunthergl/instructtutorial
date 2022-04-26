@@ -906,23 +906,26 @@ data_heatmap <- data_Bcells %>%
     # Therefore, let's make the Rpheno-column the rownames!
     column_to_rownames("Rpheno")
 
+
+bcell_markers <- c(
+	'IgD','IgM','CD10','CD21','CD27','CD38','CXCR3','CXCR5','CCR6','CRTH2',
+	'HLADR','CD69','Ki67','CD11c','CD25','CD95','CD137','CD226','ICOS','PD1',
+	'Lag3','TIGIT','CD96','CD123','KLRG1','KLRF1','KLRB1','CD16','CD28','CD62L',
+	'CD45RO','CD56','CD34')
+
 # Create a data frame for the marker categories
 annotation_rows <- data.frame(
-    marker_category = c(
-        rep("Differentiation", 2),
-        rep("Co-stimulation", 4),
-        rep("Co-inhibition", 4),
-        rep("Activation", 7),
-        rep("Chemokine receptor", 4),
-        rep("Others", 12)
-    )
-)
-
+	marker_category = c(
+		rep("Differentiation",6),
+		rep("Chemokine receptor",4),
+		rep("Activation",3),
+		rep("Miscellaneous",20))
+	)
 
 # The sel_markers_Tcells should be the rownames of the annotations
-rownames(annotation_rows) <- sel_markers_Bcells
+rownames(annotation_rows) <- bcell_markers
 
-data_heatmap %>%
+data_heatmap[, bcell_markers] %>%
     # t() transposes data_heatmap
     # apart from that it automatically converts the tibble into a matrix
     t() %>%
@@ -936,7 +939,7 @@ data_heatmap %>%
         # Do not show the annotation_row column name
         annotation_names_row = FALSE,
         # vector of row indices that show where to put gaps into heatmap. Used only if the rows are not clustered. See cutree_row to see how to introduce gaps to clustered rows.
-        gaps_row = c(2, 6, 10, 17, 21),
+        gaps_row = c(6, 10, 13),
         # a sequence of numbers that covers the range of values in mat and
         # is one element longer than color vector.
         # Used for mapping values to colors.
@@ -967,23 +970,26 @@ data_heatmap <- data_Bcells %>%
     # Therefore, let's make the flowsom-column the rownames!
     column_to_rownames("flowsom")
 
+bcell_markers <- c(
+	'IgD','IgM','CD10','CD21','CD27','CD38','CXCR3','CXCR5','CCR6','CRTH2',
+	'HLADR','CD69','Ki67','CD11c','CD25','CD95','CD137','CD226','ICOS','PD1',
+	'Lag3','TIGIT','CD96','CD123','KLRG1','KLRF1','KLRB1','CD16','CD28','CD62L',
+	'CD45RO','CD56','CD34')
+
 # Create a data frame for the marker categories
 annotation_rows <- data.frame(
-    marker_category = c(
-        rep("Differentiation", 2),
-        rep("Co-stimulation", 4),
-        rep("Co-inhibition", 4),
-        rep("Activation", 7),
-        rep("Chemokine receptor", 4),
-        rep("Others", 12)
-    )
-)
+	marker_category = c(
+		rep("Differentiation",6),
+		rep("Chemokine receptor",4),
+		rep("Activation",3),
+		rep("Miscellaneous",20))
+	)
 
 
 # The sel_markers_Tcells should be the rownames of the annotations
-rownames(annotation_rows) <- sel_markers_Bcells
+rownames(annotation_rows) <- bcell_markers
 
-data_heatmap %>%
+data_heatmap[, bcell_markers] %>%
     # t() transposes data_heatmap
     # apart from that it automatically converts the tibble into a matrix
     t() %>%
@@ -997,7 +1003,7 @@ data_heatmap %>%
         # Do not show the annotation_row column name
         annotation_names_row = FALSE,
         # vector of row indices that show where to put gaps into heatmap. Used only if the rows are not clustered. See cutree_row to see how to introduce gaps to clustered rows.
-        gaps_row = c(2, 6, 10, 17, 21), 
+        gaps_row = c(6, 10, 13),
         # a sequence of numbers that covers the range of values in mat and
         # is one element longer than color vector.
         # Used for mapping values to colors.
